@@ -1,0 +1,5 @@
+[[redirects]]
+  from = "https://harry-potter-academy-school.netlify.app/*"
+  to = "https://harry-potter.uz/:splat"
+  status = 301
+  force = true
