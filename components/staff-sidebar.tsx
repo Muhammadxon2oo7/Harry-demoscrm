@@ -12,6 +12,7 @@ import {
   Award,
   DollarSign,
   BookOpen,
+  FileText,
 } from "lucide-react";
 import { useState } from "react";
 import Image from "next/image";
@@ -25,6 +26,7 @@ export function StaffSidebar() {
   const menuItems = [
     { href: "/staff", label: "Dashboard", icon: Users },
     { href: "/staff/subjects", label: "Fanlar va Guruhlar", icon: BookOpen },
+    { href: "/staff/tests", label: "Testlar", icon: FileText },
     { href: "/staff/rating", label: "Reyting", icon: Award },
   ];
 

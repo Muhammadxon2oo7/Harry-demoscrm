@@ -38,7 +38,7 @@ interface Test {
   averageScore?: number;
 }
 
-export default function StaffTestsPage() {
+export default function AdminTestsPage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -90,15 +90,15 @@ export default function StaffTestsPage() {
   );
 
   const handleCreateTest = () => {
-    router.push("/staff/tests/create");
+    router.push("/admin/tests/create");
   };
 
   const handleEditTest = (testId: string) => {
-    router.push(`/staff/tests/${testId}/edit`);
+    router.push(`/admin/tests/${testId}/edit`);
   };
 
   const handleViewResults = (testId: string) => {
-    router.push(`/staff/tests/${testId}/results`);
+    router.push(`/admin/tests/${testId}/results`);
   };
 
   const handleDuplicateTest = (test: Test) => {
