@@ -8,12 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { X, AlertCircle, Trophy, CalendarIcon, List } from "lucide-react";
 import { format, isBefore, isAfter, startOfDay } from "date-fns";
-import {
-  getScoresByDate,
-  startScoreSession,
-  updateScore,
-  Score,
-} from "@/lib/api";
+import { scoresApi, studentsApi, type ScoreRecord } from "@/lib/api";
 
 interface Props {
   groupId: number;
@@ -23,7 +18,7 @@ interface Props {
 
 export function ScoreModal({ groupId, isOpen, onClose }: Props) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [scores, setScores] = useState<Score[]>([]);
+  const [scores, setScores] = useState<ScoreRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [updating, setUpdating] = useState<number | null>(null);
 
@@ -54,7 +49,10 @@ export function ScoreModal({ groupId, isOpen, onClose }: Props) {
   const loadScores = async () => {
     setLoading(true);
     try {
-      const data = await getScoresByDate(groupId, formattedDate);
+      const all = await scoresApi.list();
+      const data = all.filter(
+        (s) => (typeof s.group === "object" ? s.group.id : s.group) === groupId && s.date === formattedDate
+      );
       setScores(data);
     } catch (err) {
       console.error(err);
@@ -67,8 +65,11 @@ export function ScoreModal({ groupId, isOpen, onClose }: Props) {
     if (!canCreate) return;
     setLoading(true);
     try {
-      const data = await startScoreSession(groupId, format(selectedDate, "yyyy-MM-dd"));
-      setScores(data);
+      const students = await studentsApi.list(groupId);
+      const created = await Promise.all(
+        students.map((st) => scoresApi.create(st.id, groupId, 0))
+      );
+      setScores(created);
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -83,7 +84,7 @@ const handleScoreChange = async (scoreId: number, value: string) => {
 
   setUpdating(scoreId);
   try {
-    const updated = await updateScore(scoreId, num, 9); // maxScore = 9
+    const updated = await scoresApi.update(scoreId, num);
     setScores((prev) =>
       prev.map((s) => (s.id === updated.id ? updated : s))
     );
@@ -183,7 +184,7 @@ const handleScoreChange = async (scoreId: number, value: string) => {
             </TabsList>
 
             {/* Tab Content */}
-            <TabsContent value="list" className="flex-1 overflow-y-auto p-4 mt-0 flex-col max-h-[500px] ">
+            <TabsContent value="list" className="flex-1 overflow-y-auto p-4 mt-0 flex-col max-h-125">
               <div className="mb-3 text-center">
                 <p className="text-sm font-medium">{format(selectedDate, "dd MMMM, yyyy")}</p>
                 {!isTodayDate && (

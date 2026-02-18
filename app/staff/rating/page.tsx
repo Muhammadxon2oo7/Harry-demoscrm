@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import {
   Select,
@@ -11,68 +11,123 @@ import {
 } from "@/components/ui/select";
 import { Trophy, Medal, Award } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { groupsApi, studentsApi, scoresApi, attendanceApi, type Group, type UserProfile } from "@/lib/api";
 
 interface GroupRating {
-  id: string;
+  id: number;
   groupName: string;
   averageScore: number;
   studentsCount: number;
-  rank: number;
 }
 
 interface StudentRating {
-  id: string;
+  id: number;
   studentName: string;
   score: number;
   attendance: number;
-  rank: number;
 }
 
 export default function StaffRatingPage() {
-  const [selectedGroup, setSelectedGroup] = useState("1");
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState("");
+  const [groupRatings, setGroupRatings] = useState<GroupRating[]>([]);
+  const [studentRatings, setStudentRatings] = useState<StudentRating[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const myGroups = [
-    { id: "1", name: "Beginner A1" },
-    { id: "2", name: "Advanced C1" },
-  ];
+  useEffect(() => {
+    async function load() {
+      try {
+        const [grps, scores, attendance] = await Promise.all([
+          groupsApi.list(),
+          scoresApi.list(),
+          attendanceApi.list(),
+        ]);
+        setGroups(grps);
 
-  // All groups rating (subject-wide)
-  const allGroupsRating: GroupRating[] = [
-    { id: "1", groupName: "Beginner A1", averageScore: 87.5, studentsCount: 12, rank: 2 },
-    { id: "2", groupName: "Advanced C1", averageScore: 92.3, studentsCount: 8, rank: 1 },
-    { id: "3", groupName: "Intermediate B1", averageScore: 85.0, studentsCount: 15, rank: 3 },
-  ];
+        // Build group ratings
+        const scoresByGroup: Record<number, number[]> = {};
+        scores.forEach((s) => {
+          const gid = typeof s.group === "object" ? s.group.id : (s as unknown as { group: number }).group;
+          if (!scoresByGroup[gid]) scoresByGroup[gid] = [];
+          scoresByGroup[gid].push(s.score);
+        });
 
-  // Students in selected group
-  const studentsInGroup: { [key: string]: StudentRating[] } = {
-    "1": [
-      { id: "1", studentName: "Abdullayev Vali", score: 95, attendance: 98, rank: 1 },
-      { id: "2", studentName: "Karimov Ali", score: 88, attendance: 92, rank: 2 },
-      { id: "3", studentName: "Toshmatov Sardor", score: 82, attendance: 89, rank: 3 },
-      { id: "4", studentName: "Usmanova Nigora", score: 78, attendance: 85, rank: 4 },
-      { id: "5", studentName: "Rahimov Akmal", score: 74, attendance: 80, rank: 5 },
-    ],
-    "2": [
-      { id: "1", studentName: "Saidov Timur", score: 96, attendance: 100, rank: 1 },
-      { id: "2", studentName: "Nazarova Madina", score: 90, attendance: 95, rank: 2 },
-      { id: "3", studentName: "Qodirov Jasur", score: 88, attendance: 92, rank: 3 },
-    ],
-  };
+        const ratings: GroupRating[] = grps.map((g) => ({
+          id: g.id,
+          groupName: g.name,
+          averageScore: scoresByGroup[g.id]?.length
+            ? Math.round(scoresByGroup[g.id].reduce((a, b) => a + b, 0) / scoresByGroup[g.id].length)
+            : 0,
+          studentsCount: g.students_count,
+        })).sort((a, b) => b.averageScore - a.averageScore);
+        setGroupRatings(ratings);
+
+        if (grps.length > 0) setSelectedGroup(String(grps[0].id));
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedGroup) return;
+    async function loadStudents() {
+      try {
+        const [studs, scores, attendance] = await Promise.all([
+          studentsApi.list(Number(selectedGroup)),
+          scoresApi.list(),
+          attendanceApi.list(),
+        ]);
+
+        const scoreMap: Record<number, number[]> = {};
+        scores.forEach((s) => {
+          const gid = typeof s.group === "object" ? s.group.id : (s as unknown as { group: number }).group;
+          if (String(gid) !== selectedGroup) return;
+          const sid = typeof s.student === "object" ? s.student.id : (s as unknown as { student: number }).student;
+          if (!scoreMap[sid]) scoreMap[sid] = [];
+          scoreMap[sid].push(s.score);
+        });
+
+        const attMap: Record<number, { total: number; present: number }> = {};
+        attendance.forEach((a) => {
+          const gid = typeof a.group === "object" ? a.group.id : (a as unknown as { group: number }).group;
+          if (String(gid) !== selectedGroup) return;
+          const sid = typeof a.student === "object" ? a.student.id : (a as unknown as { student: number }).student;
+          if (!attMap[sid]) attMap[sid] = { total: 0, present: 0 };
+          attMap[sid].total++;
+          if (a.status === "keldi" || a.status === "kechikdi") attMap[sid].present++;
+        });
+
+        const rated: StudentRating[] = studs.map((s) => {
+          const scrs = scoreMap[s.id] || [];
+          const avg = scrs.length ? Math.round(scrs.reduce((a, b) => a + b, 0) / scrs.length) : 0;
+          const att = attMap[s.id];
+          const attPct = att ? Math.round((att.present / att.total) * 100) : 0;
+          return {
+            id: s.id,
+            studentName: `${s.first_name} ${s.last_name}`.trim() || s.username,
+            score: avg,
+            attendance: attPct,
+          };
+        }).sort((a, b) => b.score - a.score);
+
+        setStudentRatings(rated);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    loadStudents();
+  }, [selectedGroup]);
 
   const getRankIcon = (rank: number) => {
     switch (rank) {
-      case 1:
-        return <Trophy className="w-6 h-6 text-yellow-500" />;
-      case 2:
-        return <Medal className="w-6 h-6 text-gray-400" />;
-      case 3:
-        return <Award className="w-6 h-6 text-amber-600" />;
-      default:
-        return (
-          <span className="w-6 h-6 flex items-center justify-center text-sm font-semibold">
-            {rank}
-          </span>
-        );
+      case 1: return <Trophy className="w-6 h-6 text-yellow-500" />;
+      case 2: return <Medal className="w-6 h-6 text-gray-400" />;
+      case 3: return <Award className="w-6 h-6 text-amber-600" />;
+      default: return <span className="w-6 h-6 flex items-center justify-center text-sm font-semibold">{rank}</span>;
     }
   };
 
@@ -80,9 +135,7 @@ export default function StaffRatingPage() {
     <div>
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-foreground">Reyting</h1>
-        <p className="text-muted-foreground mt-2">
-          Guruhlar va o'quvchilar reytingi
-        </p>
+        <p className="text-muted-foreground mt-2">Guruhlar va o&apos;quvchilar reytingi</p>
       </div>
 
       <Tabs defaultValue="groups" className="w-full">
@@ -94,31 +147,28 @@ export default function StaffRatingPage() {
         {/* ALL GROUPS RATING */}
         <TabsContent value="groups" className="mt-6">
           <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-4">Ingliz tili bo'yicha barcha guruhlar</h2>
-            <div className="space-y-4">
-              {allGroupsRating.map((group) => (
-                <div
-                  key={group.id}
-                  className="flex items-center gap-4 border-b pb-4 last:border-0"
-                >
-                  <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-                    {getRankIcon(group.rank)}
+            <h2 className="text-xl font-semibold mb-4">Barcha guruhlar reytingi</h2>
+            {loading ? (
+              <p className="text-muted-foreground">Yuklanmoqda...</p>
+            ) : (
+              <div className="space-y-4">
+                {groupRatings.map((group, idx) => (
+                  <div key={group.id} className="flex items-center gap-4 border-b pb-4 last:border-0">
+                    <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                      {getRankIcon(idx + 1)}
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold">{group.groupName}</h3>
+                      <p className="text-sm text-muted-foreground">{group.studentsCount} ta o&apos;quvchi</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-primary">{group.averageScore}</p>
+                      <p className="text-sm text-muted-foreground">O&apos;rtacha ball</p>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold">{group.groupName}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {group.studentsCount} ta o'quvchi
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-primary">
-                      {group.averageScore}%
-                    </p>
-                    <p className="text-sm text-muted-foreground">O'rtacha ball</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </Card>
         </TabsContent>
 
@@ -131,8 +181,8 @@ export default function StaffRatingPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {myGroups.map((group) => (
-                  <SelectItem key={group.id} value={group.id}>
+                {groups.map((group) => (
+                  <SelectItem key={group.id} value={String(group.id)}>
                     {group.name}
                   </SelectItem>
                 ))}
@@ -142,40 +192,40 @@ export default function StaffRatingPage() {
 
           <Card className="p-6">
             <h2 className="text-xl font-semibold mb-4">
-              {myGroups.find((g) => g.id === selectedGroup)?.name} - O'quvchilar reytingi
+              {groups.find((g) => String(g.id) === selectedGroup)?.name} — O&apos;quvchilar reytingi
             </h2>
-            <div className="space-y-4">
-              {studentsInGroup[selectedGroup]?.map((student) => (
-                <div
-                  key={student.id}
-                  className="flex items-center justify-between border-b pb-4 last:border-0"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                      {getRankIcon(student.rank)}
+            {studentRatings.length === 0 ? (
+              <p className="text-muted-foreground">Ma&apos;lumotlar yo&apos;q</p>
+            ) : (
+              <div className="space-y-4">
+                {studentRatings.map((student, idx) => (
+                  <div key={student.id} className="flex items-center justify-between border-b pb-4 last:border-0">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                        {getRankIcon(idx + 1)}
+                      </div>
+                      <div>
+                        <h4 className="font-semibold">{student.studentName}</h4>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-semibold">{student.studentName}</h4>
+                    <div className="flex gap-8 text-sm">
+                      <div className="text-center">
+                        <p className="text-muted-foreground">Ball</p>
+                        <p className="text-lg font-semibold text-primary">{student.score}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-muted-foreground">Davomat</p>
+                        <p className="text-lg font-semibold text-green-600">{student.attendance}%</p>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex gap-8 text-sm">
-                    <div className="text-center">
-                      <p className="text-muted-foreground">Ball</p>
-                      <p className="text-lg font-semibold text-primary">{student.score}%</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-muted-foreground">Davomat</p>
-                      <p className="text-lg font-semibold text-green-600">
-                        {student.attendance}%
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </Card>
         </TabsContent>
       </Tabs>
     </div>
   );
 }
+

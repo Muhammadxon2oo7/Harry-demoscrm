@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,70 +13,56 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { ClipboardList, CheckCircle, Clock, AlertCircle } from "lucide-react";
-
-interface Test {
-  id: string;
-  title: string;
-  subject: string;
-  date: string;
-  score?: number;
-  status: "taken" | "available";
-}
+import { ClipboardList, CheckCircle } from "lucide-react";
+import { mockSessionsApi, examsApi, type TestSession } from "@/lib/api";
 
 export default function StudentTestsPage() {
   const [testCode, setTestCode] = useState("");
   const [isEnterCodeOpen, setIsEnterCodeOpen] = useState(false);
+  const [sessions, setSessions] = useState<TestSession[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [enteringCode, setEnteringCode] = useState(false);
 
-  const tests: Test[] = [
-    {
-      id: "1",
-      title: "Haftalik test #1",
-      subject: "Ingliz tili",
-      date: "2026-02-09",
-      score: 85,
-      status: "taken",
-    },
-    {
-      id: "2",
-      title: "Present Simple & Continuous",
-      subject: "Ingliz tili",
-      date: "2026-02-05",
-      score: 92,
-      status: "taken",
-    },
-    {
-      id: "3",
-      title: "Vocabulary Test",
-      subject: "Ingliz tili",
-      date: "2026-02-01",
-      score: 88,
-      status: "taken",
-    },
-  ];
+  useEffect(() => {
+    mockSessionsApi
+      .me()
+      .then(setSessions)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
 
-  const handleEnterCode = () => {
-    if (!testCode.trim()) {
-      alert("Imtihon kodini kiriting!");
-      return;
+  const handleEnterCode = async () => {
+    if (!testCode.trim()) return;
+    setEnteringCode(true);
+    try {
+      await examsApi.enterCode(testCode.trim());
+      setIsEnterCodeOpen(false);
+      setTestCode("");
+      const updated = await mockSessionsApi.me();
+      setSessions(updated);
+    } catch (err) {
+      console.error(err);
+      alert("Noto'g'ri kod yoki imtihon topilmadi");
+    } finally {
+      setEnteringCode(false);
     }
-    // In real app, validate code and redirect to test
-    alert(`Imtihon kodi: ${testCode}\nImtihon topildi! Imtihonga o'tkazilmoqda...`);
-    setTestCode("");
-    setIsEnterCodeOpen(false);
   };
 
-  const averageScore =
-    tests.reduce((sum, test) => sum + (test.score || 0), 0) / tests.length;
+  const completedSessions = sessions.filter((s) => s.is_completed || s.is_finished);
+  const avgScore =
+    completedSessions.length
+      ? Math.round(
+          completedSessions.reduce((sum, s) => sum + (s.score?.score || 0), 0) /
+            completedSessions.length
+        )
+      : 0;
 
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Imtihonlar</h1>
-          <p className="text-muted-foreground mt-2">
-            Imtihonlar va natijalaringiz
-          </p>
+          <p className="text-muted-foreground mt-2">Imtihonlar va natijalaringiz</p>
         </div>
         <Dialog open={isEnterCodeOpen} onOpenChange={setIsEnterCodeOpen}>
           <DialogTrigger asChild>
@@ -100,11 +86,11 @@ export default function StudentTestsPage() {
                   maxLength={6}
                 />
                 <p className="text-sm text-muted-foreground mt-2">
-                  O'qituvchi bergan 6 belgili kodni kiriting
+                  O&apos;qituvchi bergan kodni kiriting
                 </p>
               </div>
-              <Button onClick={handleEnterCode} className="w-full">
-                Imtihonga kirish
+              <Button onClick={handleEnterCode} className="w-full" disabled={enteringCode}>
+                {enteringCode ? "Tekshirilmoqda..." : "Imtihonga kirish"}
               </Button>
             </div>
           </DialogContent>
@@ -112,82 +98,96 @@ export default function StudentTestsPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <Card className="p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Jami imtihonlar</p>
-              <h3 className="text-2xl font-bold mt-2">{tests.length}</h3>
+              <h3 className="text-2xl font-bold mt-2">{sessions.length}</h3>
             </div>
             <div className="p-3 rounded-full bg-blue-100">
               <ClipboardList className="w-6 h-6 text-blue-600" />
             </div>
           </div>
         </Card>
-
         <Card className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">O'rtacha ball</p>
-              <h3 className="text-2xl font-bold mt-2">{Math.round(averageScore)}%</h3>
+              <p className="text-sm text-muted-foreground">O&apos;rtacha ball</p>
+              <h3 className="text-2xl font-bold mt-2">{avgScore}</h3>
             </div>
             <div className="p-3 rounded-full bg-green-100">
               <CheckCircle className="w-6 h-6 text-green-600" />
             </div>
           </div>
         </Card>
-
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Eng yuqori ball</p>
-              <h3 className="text-2xl font-bold mt-2">
-                {Math.max(...tests.map((t) => t.score || 0))}%
-              </h3>
-            </div>
-            <div className="p-3 rounded-full bg-yellow-100">
-              <CheckCircle className="w-6 h-6 text-yellow-600" />
-            </div>
-          </div>
-        </Card>
       </div>
 
-      {/* Tests List */}
+      {/* Sessions */}
       <Card className="p-6">
         <h2 className="text-xl font-semibold mb-4">Imtihon natijalari</h2>
-        <div className="space-y-4">
-          {tests.map((test) => (
-            <div
-              key={test.id}
-              className="flex items-center justify-between border-b pb-4 last:border-0"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                  <CheckCircle className="w-5 h-5 text-green-600" />
-                </div>
-                <div>
-                  <h3 className="font-semibold">{test.title}</h3>
-                  <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
-                    <span>{test.subject}</span>
-                    <span>•</span>
-                    <span>{test.date}</span>
+        {loading ? (
+          <p className="text-muted-foreground">Yuklanmoqda...</p>
+        ) : sessions.length === 0 ? (
+          <p className="text-muted-foreground">Hozircha imtihonlar yo&apos;q</p>
+        ) : (
+          <div className="space-y-4">
+            {sessions.map((session) => {
+              const score = session.score?.score;
+              const testName =
+                typeof session.test === "object" && session.test
+                  ? session.test.title
+                  : session.test || "Imtihon";
+              const group =
+                typeof session.user === "object" && session.user?.group
+                  ? session.user.group.name
+                  : "";
+              const date = new Date(session.started_at).toLocaleDateString("uz-UZ");
+              return (
+                <div
+                  key={session.id}
+                  className="flex items-center justify-between border-b pb-4 last:border-0"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                      <CheckCircle
+                        className={`w-5 h-5 ${session.is_completed ? "text-green-600" : "text-yellow-600"}`}
+                      />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">{String(testName)}</h3>
+                      <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
+                        {group && <span>{group}</span>}
+                        <span>•</span>
+                        <span>{date}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    {score != null ? (
+                      <>
+                        <p className="text-2xl font-bold text-primary">{score}</p>
+                        {score >= 30 ? (
+                          <Badge className="bg-green-500 mt-1">A&apos;lo</Badge>
+                        ) : score >= 20 ? (
+                          <Badge className="bg-blue-500 mt-1">Yaxshi</Badge>
+                        ) : (
+                          <Badge className="bg-yellow-500 mt-1">Qoniqarli</Badge>
+                        )}
+                      </>
+                    ) : (
+                      <Badge variant="secondary">
+                        {session.is_finished ? "Baholash kutilmoqda" : "Davom etmoqda"}
+                      </Badge>
+                    )}
                   </div>
                 </div>
-              </div>
-              <div className="text-right">
-                <p className="text-2xl font-bold text-primary">{test.score}%</p>
-                {test.score! >= 80 ? (
-                  <Badge className="bg-green-500 mt-1">A'lo</Badge>
-                ) : test.score! >= 60 ? (
-                  <Badge className="bg-blue-500 mt-1">Yaxshi</Badge>
-                ) : (
-                  <Badge className="bg-yellow-500 mt-1">Qoniqarli</Badge>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </Card>
     </div>
   );
 }
+

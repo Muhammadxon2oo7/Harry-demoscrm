@@ -6,12 +6,12 @@ import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { X, Upload, FileText, Clock, Plus, Download, Trash2, Send } from "lucide-react";
 import { format } from "date-fns";
-import { createHomework, downloadHomework, deleteHomework } from "@/lib/api";
+import { homeworkApi } from "@/lib/api";
 
 interface Homework {
   id: number;
   text: string;
-  document: string;
+  file: string | null;
   created_at: string;
 }
 
@@ -54,7 +54,12 @@ export function HomeworkDrawer({
 
     setUploading(true);
     try {
-      const hw = await createHomework(groupId, { text, file: file ?? undefined });
+      const formData = new FormData();
+      formData.append("group", String(groupId));
+      if (text) formData.append("text", text);
+      if (file) formData.append("file", file);
+      const record = await homeworkApi.create(formData);
+      const hw: Homework = { id: record.id, text: record.text, file: record.file, created_at: record.created_at };
       setHomeworks((prev) => {
         const updated = [hw, ...prev];
         return updated.sort(
@@ -95,7 +100,7 @@ export function HomeworkDrawer({
     if (deleting) return;
     setDeleting(id);
     try {
-      await deleteHomework(id);
+      await homeworkApi.delete(id);
       setHomeworks((prev) => prev.filter((hw) => hw.id !== id));
       onHomeworkDeleted?.(id);
     } catch (err: any) {
@@ -215,7 +220,7 @@ export function HomeworkDrawer({
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1 min-w-0">
                             <h4 className="text-sm font-medium flex items-center gap-1.5">
-                              <FileText className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                              <FileText className="w-3.5 h-3.5 text-primary shrink-0" />
                               <span className="truncate">Vazifa #{displayNumber}</span>
                             </h4>
 
@@ -227,24 +232,20 @@ export function HomeworkDrawer({
                             )}
 
                             {/* FILE */}
-                            {hw.document && (
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    await downloadHomework(hw.document);
-                                  } catch (err: any) {
-                                    alert("Yuklashda xatolik: " + err.message);
-                                  }
-                                }}
+                            {hw.file && (
+                              <a
+                                href={hw.file}
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 className="mt-2 flex items-center gap-1.5 text-xs text-primary hover:underline"
                               >
                                 <Download className="w-3 h-3" />
                                 Faylni yuklab olish
-                              </button>
+                              </a>
                             )}
 
                             <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                              <Clock className="w-3 h-3 flex-shrink-0" />
+                              <Clock className="w-3 h-3 shrink-0" />
                               {format(new Date(hw.created_at), "dd MMM • HH:mm")}
                             </p>
                           </div>
@@ -374,20 +375,16 @@ export function HomeworkDrawer({
                               </p>
                             )}
 
-                            {hw.document && (
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    await downloadHomework(hw.document);
-                                  } catch (err: any) {
-                                    alert("Yuklashda xatolik: " + err.message);
-                                  }
-                                }}
+                            {hw.file && (
+                              <a
+                                href={hw.file}
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 className="mt-2 flex items-center gap-2 text-sm text-primary hover:underline"
                               >
                                 <Download className="w-4 h-4" />
                                 Faylni yuklab olish
-                              </button>
+                              </a>
                             )}
 
                             <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">

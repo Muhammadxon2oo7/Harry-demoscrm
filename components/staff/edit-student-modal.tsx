@@ -3,12 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {  X } from "lucide-react";
-import { Student } from "@/lib/api";
+import { UserProfile, studentsApi } from "@/lib/api";
 
 interface Props {
-  student: Student;
+  student: UserProfile;
   onClose: () => void;
-  onUpdate: (changes: Partial<Student> & { id: number }) => Promise<void>;
+  onUpdate: (changes: Partial<UserProfile> & { id: number }) => Promise<void>;
 }
 
 export function EditStudentModal({ student, onClose, onUpdate }: Props) {

@@ -7,12 +7,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { X, Check, Clock, AlertCircle, UserCheck, CalendarIcon, List } from "lucide-react";
 import { format, isBefore, isAfter, startOfDay } from "date-fns";
-import {
-  getAttendanceByDate,
-  startAttendance,
-  updateAttendanceStatus,
-  Attendance,
-} from "@/lib/api";
+import { attendanceApi, type AttendanceRecord } from "@/lib/api";
 
 interface Props {
   groupId: number;
@@ -22,7 +17,7 @@ interface Props {
 
 export function AttendanceModal({ groupId, isOpen, onClose }: Props) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [attendances, setAttendances] = useState<Attendance[]>([]);
+  const [attendances, setAttendances] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [updating, setUpdating] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"list" | "calendar">("list");
@@ -48,7 +43,10 @@ export function AttendanceModal({ groupId, isOpen, onClose }: Props) {
   const loadAttendance = async () => {
     setLoading(true);
     try {
-      const data = await getAttendanceByDate(groupId, formattedDate);
+      const all = await attendanceApi.list();
+      const data = all.filter(
+        (a) => (typeof a.group === "object" ? a.group.id : a.group) === groupId && a.date === formattedDate
+      );
       setAttendances(data);
     } catch (err) {
       console.error(err);
@@ -61,8 +59,9 @@ export function AttendanceModal({ groupId, isOpen, onClose }: Props) {
     if (!canCreate) return;
     setLoading(true);
     try {
-      const data = await startAttendance(groupId, format(selectedDate, "yyyy-MM-dd"));
-      setAttendances(data);
+      const data = await attendanceApi.bulkCreate(groupId);
+      const filtered = data.filter((a) => a.date === formattedDate);
+      setAttendances(filtered);
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -77,7 +76,7 @@ export function AttendanceModal({ groupId, isOpen, onClose }: Props) {
     if (!isEditable) return;
     setUpdating(attendanceId);
     try {
-      const updated = await updateAttendanceStatus(attendanceId, status);
+      const updated = await attendanceApi.updateStatus(attendanceId, status);
       setAttendances((prev) =>
         prev.map((a) => (a.id === updated.id ? updated : a))
       );
@@ -175,7 +174,7 @@ export function AttendanceModal({ groupId, isOpen, onClose }: Props) {
             </TabsList>
 
             {/* Tab Content */}
-          <TabsContent value="list" className="flex-1 overflow-y-auto p-4 mt-0 flex-col max-h-[500px] ">
+          <TabsContent value="list" className="flex-1 overflow-y-auto p-4 mt-0 flex-col max-h-125">
 
             
               <div className="mb-3 text-center">

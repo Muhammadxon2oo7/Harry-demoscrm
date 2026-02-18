@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,6 @@ import {
   Trash2,
   Users,
   BookOpen,
-  X,
   Clock,
   Calendar,
   User,
@@ -33,31 +32,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
-interface Subject {
-  id: string;
-  name: string;
-  description: string;
-  groupsCount: number;
-}
-
-interface Staff {
-  id: string;
-  fullName: string;
-}
-
-interface Group {
-  id: string;
-  name: string;
-  subjectId: string;
-  subjectName: string;
-  teacherId: string;
-  teacherName: string;
-  days: string[];
-  startTime: string;
-  endTime: string;
-  studentsCount: number;
-}
+import {
+  subjectsApi,
+  groupsApi,
+  workersApi,
+  type Subject,
+  type Group,
+  type UserProfile,
+} from "@/lib/api";
 
 const weekDays = [
   { value: "Mon", label: "Dush", icon: "D" },
@@ -71,45 +53,30 @@ const weekDays = [
 
 export default function AdminSubjectsPage() {
   const router = useRouter();
-  
-  const [subjects, setSubjects] = useState<Subject[]>([
-    { id: "1", name: "Ingliz tili", description: "English language courses", groupsCount: 3 },
-    { id: "2", name: "Matematika", description: "Mathematics courses", groupsCount: 2 },
-    { id: "3", name: "Fizika", description: "Physics courses", groupsCount: 1 },
-  ]);
 
-  const [staff] = useState<Staff[]>([
-    { id: "1", fullName: "Aliyev Jasur" },
-    { id: "2", fullName: "Karimova Malika" },
-    { id: "3", fullName: "Rahimov Vali" },
-  ]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [staff, setStaff] = useState<UserProfile[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [groups, setGroups] = useState<Group[]>([
-    {
-      id: "1",
-      name: "Beginner A1",
-      subjectId: "1",
-      subjectName: "Ingliz tili",
-      teacherId: "1",
-      teacherName: "Aliyev Jasur",
-      days: ["Mon", "Wed", "Fri"],
-      startTime: "09:00",
-      endTime: "11:00",
-      studentsCount: 12,
-    },
-    {
-      id: "2",
-      name: "Advanced C1",
-      subjectId: "1",
-      subjectName: "Ingliz tili",
-      teacherId: "2",
-      teacherName: "Karimova Malika",
-      days: ["Tue", "Thu", "Sat"],
-      startTime: "14:00",
-      endTime: "16:00",
-      studentsCount: 8,
-    },
-  ]);
+  const loadData = useCallback(async () => {
+    try {
+      const [subjs, workers, grps] = await Promise.all([
+        subjectsApi.list(),
+        workersApi.list(),
+        groupsApi.list(),
+      ]);
+      setSubjects(subjs);
+      setStaff(workers);
+      setGroups(grps);
+    } catch {
+      // errors handled by api client
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
 
   // Subject modals
   const [showAddSubject, setShowAddSubject] = useState(false);
@@ -142,38 +109,36 @@ export default function AdminSubjectsPage() {
   };
 
   // Subject handlers
-  const handleAddSubject = () => {
+  const handleAddSubject = async () => {
     if (!subjectName.trim()) return;
-    const newSubject: Subject = {
-      id: Date.now().toString(),
-      name: subjectName,
-      description: subjectDescription,
-      groupsCount: 0,
-    };
-    setSubjects([...subjects, newSubject]);
-    resetSubjectForm();
-    setShowAddSubject(false);
-    showMessage("success", "Fan qo'shildi");
+    try {
+      await subjectsApi.create(subjectName);
+      await loadData();
+      resetSubjectForm();
+      setShowAddSubject(false);
+      showMessage("success", "Fan qo'shildi");
+    } catch {
+      showMessage("error", "Xatolik yuz berdi");
+    }
   };
 
-  const handleEditSubject = () => {
+  const handleEditSubject = async () => {
     if (!editingSubject || !subjectName.trim()) return;
-    setSubjects(
-      subjects.map((s) =>
-        s.id === editingSubject.id
-          ? { ...s, name: subjectName, description: subjectDescription }
-          : s
-      )
-    );
-    resetSubjectForm();
-    setEditingSubject(null);
-    showMessage("success", "Fan tahrirlandi");
+    try {
+      await subjectsApi.update(editingSubject.id, subjectName);
+      await loadData();
+      resetSubjectForm();
+      setEditingSubject(null);
+      showMessage("success", "Fan tahrirlandi");
+    } catch {
+      showMessage("error", "Xatolik yuz berdi");
+    }
   };
 
   const openEditSubject = (subject: Subject) => {
     setEditingSubject(subject);
     setSubjectName(subject.name);
-    setSubjectDescription(subject.description);
+    setSubjectDescription("");
   };
 
   const resetSubjectForm = () => {
@@ -188,76 +153,58 @@ export default function AdminSubjectsPage() {
     );
   };
 
-  const handleAddGroup = () => {
-    if (!groupName.trim() || !selectedSubject || !selectedTeacher || selectedDays.length === 0 || !groupStartTime || !groupEndTime) {
-      showMessage("error", "Barcha maydonlarni to'ldiring");
+  const handleAddGroup = async () => {
+    if (!groupName.trim() || !selectedSubject || selectedDays.length === 0 || !groupStartTime || !groupEndTime) {
+      showMessage("error", "Barcha majburiy maydonlarni to'ldiring");
       return;
     }
-    const subject = subjects.find((s) => s.id === selectedSubject);
-    const teacher = staff.find((t) => t.id === selectedTeacher);
-    
-    const newGroup: Group = {
-      id: Date.now().toString(),
-      name: groupName,
-      subjectId: selectedSubject,
-      subjectName: subject?.name || "",
-      teacherId: selectedTeacher,
-      teacherName: teacher?.fullName || "",
-      days: selectedDays,
-      startTime: groupStartTime,
-      endTime: groupEndTime,
-      studentsCount: 0,
-    };
-    setGroups([...groups, newGroup]);
-    
-    // Update subject groups count
-    setSubjects(subjects.map(s => 
-      s.id === selectedSubject ? { ...s, groupsCount: s.groupsCount + 1 } : s
-    ));
-    
-    resetGroupForm();
-    setShowAddGroup(false);
-    showMessage("success", "Guruh qo'shildi");
+    try {
+      await groupsApi.create({
+        name: groupName,
+        subject: Number(selectedSubject),
+        days: selectedDays.join(","),
+        start_time: groupStartTime + ":00",
+        end_time: groupEndTime + ":00",
+        is_active: true,
+      });
+      await loadData();
+      resetGroupForm();
+      setShowAddGroup(false);
+      showMessage("success", "Guruh qo'shildi");
+    } catch {
+      showMessage("error", "Xatolik yuz berdi");
+    }
   };
 
-  const handleEditGroup = () => {
-    if (!editingGroup || !groupName.trim() || !selectedSubject || !selectedTeacher || selectedDays.length === 0 || !groupStartTime || !groupEndTime) {
-      showMessage("error", "Barcha maydonlarni to'ldiring");
+  const handleEditGroup = async () => {
+    if (!editingGroup || !groupName.trim() || !selectedSubject || selectedDays.length === 0 || !groupStartTime || !groupEndTime) {
+      showMessage("error", "Barcha majburiy maydonlarni to'ldiring");
       return;
     }
-    const subject = subjects.find((s) => s.id === selectedSubject);
-    const teacher = staff.find((t) => t.id === selectedTeacher);
-    
-    setGroups(
-      groups.map((g) =>
-        g.id === editingGroup.id
-          ? {
-              ...g,
-              name: groupName,
-              subjectId: selectedSubject,
-              subjectName: subject?.name || "",
-              teacherId: selectedTeacher,
-              teacherName: teacher?.fullName || "",
-              days: selectedDays,
-              startTime: groupStartTime,
-              endTime: groupEndTime,
-            }
-          : g
-      )
-    );
-    resetGroupForm();
-    setEditingGroup(null);
-    showMessage("success", "Guruh tahrirlandi");
+    try {
+      await groupsApi.patch(editingGroup.id, {
+        name: groupName,
+        subject: Number(selectedSubject),
+        days: selectedDays.join(","),
+        start_time: groupStartTime + ":00",
+        end_time: groupEndTime + ":00",
+      });
+      await loadData();
+      resetGroupForm();
+      setEditingGroup(null);
+      showMessage("success", "Guruh tahrirlandi");
+    } catch {
+      showMessage("error", "Xatolik yuz berdi");
+    }
   };
 
   const openEditGroup = (group: Group) => {
     setEditingGroup(group);
     setGroupName(group.name);
-    setSelectedSubject(group.subjectId);
-    setSelectedTeacher(group.teacherId);
-    setSelectedDays(group.days);
-    setGroupStartTime(group.startTime);
-    setGroupEndTime(group.endTime);
+    setSelectedSubject(String(group.subject));
+    setSelectedDays(group.days ? group.days.split(",") : []);
+    setGroupStartTime(group.start_time?.slice(0, 5) ?? "");
+    setGroupEndTime(group.end_time?.slice(0, 5) ?? "");
   };
 
   const resetGroupForm = () => {
@@ -269,21 +216,19 @@ export default function AdminSubjectsPage() {
     setGroupEndTime("");
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteModal.id || !deleteModal.type) return;
-    
-    if (deleteModal.type === "subject") {
-      setSubjects(subjects.filter((s) => s.id !== deleteModal.id));
-      showMessage("success", "Fan o'chirildi");
-    } else {
-      const group = groups.find(g => g.id === deleteModal.id);
-      setGroups(groups.filter((g) => g.id !== deleteModal.id));
-      if (group) {
-        setSubjects(subjects.map(s => 
-          s.id === group.subjectId ? { ...s, groupsCount: Math.max(0, s.groupsCount - 1) } : s
-        ));
+    try {
+      if (deleteModal.type === "subject") {
+        await subjectsApi.delete(Number(deleteModal.id));
+        showMessage("success", "Fan o'chirildi");
+      } else {
+        await groupsApi.delete(Number(deleteModal.id));
+        showMessage("success", "Guruh o'chirildi");
       }
-      showMessage("success", "Guruh o'chirildi");
+      await loadData();
+    } catch {
+      showMessage("error", "O'chirishda xatolik");
     }
     setDeleteModal({ open: false, type: null, id: null });
   };
@@ -316,150 +261,153 @@ export default function AdminSubjectsPage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="subjects" className="w-full">
-        <TabsList className="grid w-full md:w-[400px] grid-cols-2">
-          <TabsTrigger value="subjects">Fanlar</TabsTrigger>
-          <TabsTrigger value="groups">Guruhlar</TabsTrigger>
-        </TabsList>
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[...Array(6)].map((_, i) => (
+            <Card key={i} className="p-5 h-40 animate-pulse bg-muted/30" />
+          ))}
+        </div>
+      ) : (
+        <Tabs defaultValue="subjects" className="w-full">
+          <TabsList className="grid w-full md:w-100 grid-cols-2">
+            <TabsTrigger value="subjects">Fanlar</TabsTrigger>
+            <TabsTrigger value="groups">Guruhlar</TabsTrigger>
+          </TabsList>
 
-        {/* Subjects Tab */}
-        <TabsContent value="subjects" className="space-y-4 mt-6">
-          <div className="flex justify-between items-center">
-            <p className="text-sm text-muted-foreground">
-              {subjects.length} ta fan
-            </p>
-            <Button onClick={() => setShowAddSubject(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              Fan qo'shish
-            </Button>
-          </div>
+          {/* Subjects Tab */}
+          <TabsContent value="subjects" className="space-y-4 mt-6">
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-muted-foreground">
+                {subjects.length} ta fan
+              </p>
+              <Button onClick={() => setShowAddSubject(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Fan qo'shish
+              </Button>
+            </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {subjects.map((subject) => (
-              <Card key={subject.id} className="p-5 hover:shadow-md transition">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-                    <BookOpen className="w-6 h-6 text-primary" />
-                  </div>
-                  <div className="flex gap-1">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8"
-                      onClick={() => openEditSubject(subject)}
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8 text-destructive"
-                      onClick={() =>
-                        setDeleteModal({ open: true, type: "subject", id: subject.id })
-                      }
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-                <h3 className="font-bold text-lg mb-2">{subject.name}</h3>
-                <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
-                  {subject.description || "Ma'lumot yo'q"}
-                </p>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Users className="w-4 h-4" />
-                  <span>{subject.groupsCount} ta guruh</span>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </TabsContent>
-
-        {/* Groups Tab */}
-        <TabsContent value="groups" className="space-y-4 mt-6">
-          <div className="flex justify-between items-center">
-            <p className="text-sm text-muted-foreground">
-              {groups.length} ta guruh
-            </p>
-            <Button onClick={() => setShowAddGroup(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              Guruh qo'shish
-            </Button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {groups.map((group) => (
-              <Card
-                key={group.id}
-                className="p-5 hover:shadow-md transition cursor-pointer group"
-                onClick={() => router.push(`/admin/subjects/group/${group.id}`)}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="w-12 h-12 bg-blue-500/10 rounded-lg flex items-center justify-center">
-                    <Users className="w-6 h-6 text-blue-600" />
-                  </div>
-                  <div className="flex gap-1">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8 opacity-0 group-hover:opacity-100 transition"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openEditGroup(group);
-                      }}
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteModal({ open: true, type: "group", id: group.id });
-                      }}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-                <h3 className="font-bold text-lg mb-1">{group.name}</h3>
-                <Badge variant="secondary" className="mb-3">
-                  {group.subjectName}
-                </Badge>
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <User className="w-4 h-4" />
-                    <span className="truncate">{group.teacherName}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Calendar className="w-4 h-4" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {subjects.map((subject) => (
+                <Card key={subject.id} className="p-5 hover:shadow-md transition">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                      <BookOpen className="w-6 h-6 text-primary" />
+                    </div>
                     <div className="flex gap-1">
-                      {group.days.map((day) => (
-                        <span
-                          key={day}
-                          className="px-2 py-0.5 bg-muted rounded text-xs"
-                        >
-                          {weekDays.find((d) => d.value === day)?.icon}
-                        </span>
-                      ))}
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8"
+                        onClick={() => openEditSubject(subject)}
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-destructive"
+                        onClick={() =>
+                          setDeleteModal({ open: true, type: "subject", id: String(subject.id) })
+                        }
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Clock className="w-4 h-4" />
-                    <span>{group.startTime} - {group.endTime}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-muted-foreground pt-1 border-t">
+                  <h3 className="font-bold text-lg mb-2">{subject.name}</h3>
+                  <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
+                    {subject.created_at ? new Date(subject.created_at).toLocaleDateString("uz-UZ") : "—"}
+                  </p>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Users className="w-4 h-4" />
-                    <span>{group.studentsCount} ta o'quvchi</span>
+                    <span>{groups.filter((g) => g.subject === subject.id).length} ta guruh</span>
                   </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </TabsContent>
-      </Tabs>
+                </Card>
+              ))}
+            </div>
+          </TabsContent>
+
+          {/* Groups Tab */}
+          <TabsContent value="groups" className="space-y-4 mt-6">
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-muted-foreground">
+                {groups.length} ta guruh
+              </p>
+              <Button onClick={() => setShowAddGroup(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Guruh qo'shish
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {groups.map((group) => (
+                <Card
+                  key={group.id}
+                  className="p-5 hover:shadow-md transition cursor-pointer group"
+                  onClick={() => router.push(`/admin/subjects/group/${group.id}`)}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="w-12 h-12 bg-blue-500/10 rounded-lg flex items-center justify-center">
+                      <Users className="w-6 h-6 text-blue-600" />
+                    </div>
+                    <div className="flex gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEditGroup(group);
+                        }}
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteModal({ open: true, type: "group", id: String(group.id) });
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <h3 className="font-bold text-lg mb-1">{group.name}</h3>
+                  <Badge variant="secondary" className="mb-3">
+                    {group.subject_name}
+                  </Badge>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Calendar className="w-4 h-4" />
+                      <div className="flex gap-1 flex-wrap">
+                        {(group.days || "").split(",").filter(Boolean).map((day) => (
+                          <span
+                            key={day}
+                            className="px-2 py-0.5 bg-muted rounded text-xs"
+                          >
+                            {weekDays.find((d) => d.value === day.trim())?.icon ?? day}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Clock className="w-4 h-4" />
+                      <span>{group.start_time?.slice(0, 5)} - {group.end_time?.slice(0, 5)}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-muted-foreground pt-1 border-t">
+                      <Users className="w-4 h-4" />
+                      <span>{group.students_count} ta o'quvchi</span>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </TabsContent>
+        </Tabs>
+      )}
 
       {/* Add/Edit Subject Modal */}
       <Dialog
@@ -559,7 +507,7 @@ export default function AdminSubjectsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {subjects.map((subject) => (
-                    <SelectItem key={subject.id} value={subject.id}>
+                    <SelectItem key={subject.id} value={String(subject.id)}>
                       {subject.name}
                     </SelectItem>
                   ))}
@@ -568,15 +516,15 @@ export default function AdminSubjectsPage() {
             </div>
 
             <div>
-              <Label>O'qituvchi</Label>
+              <Label>O'qituvchi (ixtiyoriy)</Label>
               <Select value={selectedTeacher} onValueChange={setSelectedTeacher}>
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="O'qituvchini tanlang" />
                 </SelectTrigger>
                 <SelectContent>
                   {staff.map((teacher) => (
-                    <SelectItem key={teacher.id} value={teacher.id}>
-                      {teacher.fullName}
+                    <SelectItem key={teacher.id} value={String(teacher.id)}>
+                      {teacher.first_name} {teacher.last_name}
                     </SelectItem>
                   ))}
                 </SelectContent>

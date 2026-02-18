@@ -1,52 +1,33 @@
+/**
+ * This route is no longer used — login is handled directly by the
+ * real backend via lib/api.ts → authApi.login().
+ *
+ * Kept as a thin pass-through only if a server-side proxy is needed.
+ */
 import { type NextRequest, NextResponse } from "next/server";
 
-// Mock users for demonstration
-const mockUsers = [
-  {
-    id: "1",
-    email: "admin@hp.com",
-    password: "admin123",
-    fullName: "Admin User",
-    userType: "admin" as const,
-    phone: "+998901234569",
-  },
-  {
-    id: "2",
-    email: "staff@hp.com",
-    password: "staff123",
-    fullName: "O'qituvchi Alijon",
-    userType: "staff" as const,
-    phone: "+998901234568",
-    subjectId: "1",
-    groupIds: ["1", "2"],
-  },
-  {
-    id: "3",
-    email: "student@hp.com",
-    password: "student123",
-    fullName: "O'quvchi Vali",
-    userType: "student" as const,
-    phone: "+998901234567",
-    groupIds: ["1"],
-  },
-];
+const BACKEND_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  "https://api.harry-potter.uz/api/v1";
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password, userType } = await request.json();
+    const body = await request.json();
+    const res = await fetch(`${BACKEND_URL}/login/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: body.username, password: body.password }),
+    });
 
-    const user = mockUsers.find(
-      (u) => u.email === email && u.password === password && u.userType === userType
-    );
+    const data = await res.json();
 
-    if (!user) {
-      return NextResponse.json({ error: "Email yoki parol noto'g'ri" }, { status: 401 });
+    if (!res.ok) {
+      return NextResponse.json(data, { status: res.status });
     }
 
-    const { password: _, ...userWithoutPassword } = user;
-
-    return NextResponse.json(userWithoutPassword);
-  } catch (error) {
-    return NextResponse.json({ error: "Server xatosi" }, { status: 500 });
+    return NextResponse.json(data, { status: 200 });
+  } catch {
+    return NextResponse.json({ detail: "Server xatosi" }, { status: 500 });
   }
 }
+

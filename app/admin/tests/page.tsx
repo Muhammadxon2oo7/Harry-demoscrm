@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,14 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import {
   Plus,
   Search,
-  Edit,
   Trash2,
-  Copy,
-  Eye,
-  BarChart,
-  Clock,
   FileText,
-  Users,
+  Clock,
+  Headphones,
+  BookOpen,
+  PenLine,
+  Loader2,
 } from "lucide-react";
 import {
   Dialog,
@@ -24,106 +23,54 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
-interface Test {
-  id: string;
-  name: string;
-  subject: string;
-  testCode: string;
-  questionCount: number;
-  timeLimit?: number;
-  createdAt: string;
-  status: "draft" | "published";
-  completedCount: number;
-  averageScore?: number;
-}
+import { mockTestsApi, type MockTest } from "@/lib/api";
+import { toast } from "sonner";
 
 export default function AdminTestsPage() {
   const router = useRouter();
+  const [tests, setTests] = useState<MockTest[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [testToDelete, setTestToDelete] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
-  // Mock data
-  const [tests, setTests] = useState<Test[]>([
-    {
-      id: "1",
-      name: "Ingliz tili Beginner A1 - Haftalik test",
-      subject: "Ingliz tili",
-      testCode: "ABC123",
-      questionCount: 20,
-      timeLimit: 30,
-      createdAt: "2026-02-01",
-      status: "published",
-      completedCount: 15,
-      averageScore: 85,
-    },
-    {
-      id: "2",
-      name: "Matematika - Algebra 8-sinf",
-      subject: "Matematika",
-      testCode: "MTH456",
-      questionCount: 15,
-      createdAt: "2026-02-05",
-      status: "draft",
-      completedCount: 0,
-    },
-    {
-      id: "3",
-      name: "Fizika - Mexanika 10-sinf",
-      subject: "Fizika",
-      testCode: "PHY789",
-      questionCount: 25,
-      timeLimit: 45,
-      createdAt: "2026-02-08",
-      status: "published",
-      completedCount: 8,
-      averageScore: 72,
-    },
-  ]);
+  useEffect(() => {
+    fetchTests();
+  }, []);
 
-  const filteredTests = tests.filter(
-    (test) =>
-      test.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      test.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      test.testCode.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const handleCreateTest = () => {
-    router.push("/admin/tests/create");
-  };
-
-  const handleEditTest = (testId: string) => {
-    router.push(`/admin/tests/${testId}/edit`);
-  };
-
-  const handleViewResults = (testId: string) => {
-    router.push(`/admin/tests/${testId}/results`);
-  };
-
-  const handleDuplicateTest = (test: Test) => {
-    const newTest = {
-      ...test,
-      id: Date.now().toString(),
-      name: `${test.name} (nusxa)`,
-      testCode: generateTestCode(),
-      status: "draft" as const,
-      completedCount: 0,
-      averageScore: undefined,
-    };
-    setTests([newTest, ...tests]);
-  };
-
-  const handleDeleteTest = () => {
-    if (testToDelete) {
-      setTests(tests.filter((t) => t.id !== testToDelete));
-      setIsDeleteDialogOpen(false);
-      setTestToDelete(null);
+  const fetchTests = async () => {
+    try {
+      setLoading(true);
+      const data = await mockTestsApi.list();
+      setTests(data);
+    } catch {
+      toast.error("Testlarni yuklashda xatolik");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const generateTestCode = () => {
-    return Math.random().toString(36).substring(2, 8).toUpperCase();
+  const filteredTests = tests.filter(
+    (test) =>
+      test.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      test.code.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const handleDeleteTest = async () => {
+    if (!testToDelete) return;
+    try {
+      setDeleting(true);
+      await mockTestsApi.delete(testToDelete);
+      setTests((prev) => prev.filter((t) => t.id !== testToDelete));
+      toast.success("Test o'chirildi");
+      setIsDeleteDialogOpen(false);
+      setTestToDelete(null);
+    } catch {
+      toast.error("Testni o'chirishda xatolik");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -131,12 +78,12 @@ export default function AdminTestsPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Testlar</h1>
+          <h1 className="text-3xl font-bold">Mock Testlar</h1>
           <p className="text-muted-foreground">
-            Testlar yaratish va boshqarish
+            IELTS mock testlarini yaratish va boshqarish
           </p>
         </div>
-        <Button onClick={handleCreateTest} size="lg">
+        <Button onClick={() => router.push("/admin/tests/create")} size="lg">
           <Plus className="w-5 h-5 mr-2" />
           Yangi test yaratish
         </Button>
@@ -146,7 +93,7 @@ export default function AdminTestsPage() {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
         <Input
-          placeholder="Test nomi, fan yoki kod bilan qidirish..."
+          placeholder="Test nomi yoki kod bilan qidirish..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-10"
@@ -154,7 +101,7 @@ export default function AdminTestsPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="p-4">
           <div className="flex items-center justify-between">
             <div>
@@ -167,158 +114,126 @@ export default function AdminTestsPage() {
         <Card className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Nashr etilgan</p>
+              <p className="text-sm text-muted-foreground">Jami savollar</p>
               <p className="text-2xl font-bold">
-                {tests.filter((t) => t.status === "published").length}
+                {tests.reduce(
+                  (acc, t) =>
+                    acc +
+                    (t.reading?.question_count ?? 0) +
+                    (t.writing?.question_count ?? 0) +
+                    (t.listening?.question_count ?? 0),
+                  0
+                )}
               </p>
             </div>
-            <Eye className="w-8 h-8 text-green-500" />
+            <BookOpen className="w-8 h-8 text-blue-500" />
           </div>
         </Card>
         <Card className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Qoralama</p>
+              <p className="text-sm text-muted-foreground">Jami vaqt (min)</p>
               <p className="text-2xl font-bold">
-                {tests.filter((t) => t.status === "draft").length}
+                {tests.reduce(
+                  (acc, t) =>
+                    acc +
+                    (t.reading?.duration ?? 0) +
+                    (t.writing?.duration ?? 0) +
+                    (t.listening?.duration ?? 0),
+                  0
+                )}
               </p>
             </div>
-            <Edit className="w-8 h-8 text-orange-500" />
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Ishtirokchilar</p>
-              <p className="text-2xl font-bold">
-                {tests.reduce((acc, t) => acc + t.completedCount, 0)}
-              </p>
-            </div>
-            <Users className="w-8 h-8 text-blue-500" />
+            <Clock className="w-8 h-8 text-green-500" />
           </div>
         </Card>
       </div>
 
       {/* Tests List */}
-      <div className="space-y-4">
-        {filteredTests.length === 0 ? (
-          <Card className="p-12 text-center">
-            <FileText className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Test topilmadi</h3>
-            <p className="text-muted-foreground mb-4">
-              {searchQuery
-                ? "Qidiruv natijasi topilmadi"
-                : "Hozircha testlar yo'q"}
-            </p>
-            {!searchQuery && (
-              <Button onClick={handleCreateTest}>
-                <Plus className="w-4 h-4 mr-2" />
-                Birinchi testni yaratish
-              </Button>
-            )}
-          </Card>
-        ) : (
-          filteredTests.map((test) => (
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      ) : filteredTests.length === 0 ? (
+        <Card className="p-12 text-center">
+          <FileText className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Test topilmadi</h3>
+          <p className="text-muted-foreground mb-4">
+            {searchQuery
+              ? "Qidiruv natijasi topilmadi"
+              : "Hozircha testlar yo'q"}
+          </p>
+          {!searchQuery && (
+            <Button onClick={() => router.push("/admin/tests/create")}>
+              <Plus className="w-4 h-4 mr-2" />
+              Birinchi testni yaratish
+            </Button>
+          )}
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {filteredTests.map((test) => (
             <Card key={test.id} className="p-6 hover:shadow-md transition-all">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div className="flex-1 space-y-3">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-xl font-semibold">{test.name}</h3>
-                        <Badge
-                          variant={
-                            test.status === "published" ? "default" : "secondary"
-                          }
-                        >
-                          {test.status === "published"
-                            ? "Nashr etilgan"
-                            : "Qoralama"}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground mb-2">
-                        <span className="font-medium">Fan:</span> {test.subject}
-                      </p>
-                      <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <FileText className="w-4 h-4" />
-                          <span>{test.questionCount} ta savol</span>
-                        </div>
-                        {test.timeLimit && (
-                          <div className="flex items-center gap-1">
-                            <Clock className="w-4 h-4" />
-                            <span>{test.timeLimit} daqiqa</span>
-                          </div>
-                        )}
-                        <div className="flex items-center gap-1">
-                          <Users className="w-4 h-4" />
-                          <span>{test.completedCount} ta ishtirokchi</span>
-                        </div>
-                        {test.averageScore !== undefined && (
-                          <div className="flex items-center gap-1">
-                            <BarChart className="w-4 h-4" />
-                            <span>O'rtacha: {test.averageScore}%</span>
-                          </div>
-                        )}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <h3 className="text-xl font-semibold">{test.title}</h3>
+                    <Badge variant="secondary">
+                      Kod: <span className="font-bold ml-1">{test.code}</span>
+                    </Badge>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
+                      <BookOpen className="w-4 h-4 text-blue-500 shrink-0" />
+                      <div className="text-sm">
+                        <p className="font-medium text-blue-700 dark:text-blue-400">Reading</p>
+                        <p className="text-muted-foreground">
+                          {test.reading?.question_count ?? 0} savol &middot; {test.reading?.duration ?? 0} min
+                        </p>
                       </div>
                     </div>
-                    <div className="bg-primary/10 px-4 py-2 rounded-lg">
-                      <p className="text-xs text-muted-foreground">Test kodi</p>
-                      <p className="text-lg font-bold text-primary">
-                        {test.testCode}
-                      </p>
+                    <div className="flex items-center gap-2 p-2 bg-green-50 dark:bg-green-950/20 rounded-lg">
+                      <PenLine className="w-4 h-4 text-green-500 shrink-0" />
+                      <div className="text-sm">
+                        <p className="font-medium text-green-700 dark:text-green-400">Writing</p>
+                        <p className="text-muted-foreground">
+                          {test.writing?.question_count ?? 0} task &middot; {test.writing?.duration ?? 0} min
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 p-2 bg-purple-50 dark:bg-purple-950/20 rounded-lg">
+                      <Headphones className="w-4 h-4 text-purple-500 shrink-0" />
+                      <div className="text-sm">
+                        <p className="font-medium text-purple-700 dark:text-purple-400">Listening</p>
+                        <p className="text-muted-foreground">
+                          {test.listening?.question_count ?? 0} savol &middot; {test.listening?.duration ?? 0} min
+                        </p>
+                      </div>
                     </div>
                   </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    Yaratilgan: {new Date(test.created_at).toLocaleDateString("uz-UZ")}
+                  </p>
                 </div>
 
-                <div className="flex lg:flex-col gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleEditTest(test.id)}
-                    className="flex-1 lg:flex-none"
-                  >
-                    <Edit className="w-4 h-4 mr-2" />
-                    Tahrirlash
-                  </Button>
-                  {test.status === "published" && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleViewResults(test.id)}
-                      className="flex-1 lg:flex-none"
-                    >
-                      <BarChart className="w-4 h-4 mr-2" />
-                      Natijalar
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleDuplicateTest(test)}
-                    className="flex-1 lg:flex-none"
-                  >
-                    <Copy className="w-4 h-4 mr-2" />
-                    Nusxa
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => {
-                      setTestToDelete(test.id);
-                      setIsDeleteDialogOpen(true);
-                    }}
-                    className="flex-1 lg:flex-none"
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    O'chirish
-                  </Button>
-                </div>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => {
+                    setTestToDelete(test.id);
+                    setIsDeleteDialogOpen(true);
+                  }}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  O'chirish
+                </Button>
               </div>
             </Card>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
@@ -336,6 +251,7 @@ export default function AdminTestsPage() {
                 variant="outline"
                 onClick={() => setIsDeleteDialogOpen(false)}
                 className="flex-1"
+                disabled={deleting}
               >
                 Bekor qilish
               </Button>
@@ -343,7 +259,13 @@ export default function AdminTestsPage() {
                 variant="destructive"
                 onClick={handleDeleteTest}
                 className="flex-1"
+                disabled={deleting}
               >
+                {deleting ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4 mr-2" />
+                )}
                 O'chirish
               </Button>
             </div>

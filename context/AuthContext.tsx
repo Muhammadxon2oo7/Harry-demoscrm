@@ -2,21 +2,20 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { authApi, setTokens, clearTokens, type AuthUser, type UserRole } from "@/lib/api";
 
-interface User {
-  id: string;
-  email: string;
-  fullName: string;
-  userType: "admin" | "staff" | "student";
-  phone: string;
-  subjectId?: string;
-  groupIds?: string[];
-}
+/** Map backend role to frontend route prefix */
+const roleToPath: Record<UserRole, string> = {
+  owner: "/admin",
+  employee: "/staff",
+  student: "/student",
+};
 
 interface AuthContextType {
-  user: User | null;
+  user: AuthUser | null;
   isLoading: boolean;
-  login: (email: string, password: string, userType: string) => Promise<void>;
+  /** Login with username + password. Role is determined by the backend. */
+  login: (username: string, password: string) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
 }
@@ -24,45 +23,32 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
     const storedUser = localStorage.getItem("hp_user");
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
+      try {
+        setUser(JSON.parse(storedUser) as AuthUser);
+      } catch {
+        localStorage.removeItem("hp_user");
+      }
     }
     setIsLoading(false);
   }, []);
 
-  const login = async (email: string, password: string, userType: string) => {
-    try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, userType }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Login failed");
-      }
-
-      const userData = await response.json();
-      setUser(userData);
-      localStorage.setItem("hp_user", JSON.stringify(userData));
-
-      if (userType === "admin") router.push("/admin");
-      else if (userType === "staff") router.push("/staff");
-      else if (userType === "student") router.push("/student");
-    } catch (err: any) {
-      throw new Error(err.message || "Login jarayonida xato");
-    }
+  const login = async (username: string, password: string) => {
+    const data = await authApi.login(username, password);
+    setTokens(data.tokens.access, data.tokens.refresh);
+    localStorage.setItem("hp_user", JSON.stringify(data.user));
+    setUser(data.user);
+    router.push(roleToPath[data.user.role] ?? "/login");
   };
 
   const logout = () => {
-    localStorage.removeItem("hp_user");
+    clearTokens();
     setUser(null);
     router.push("/login");
   };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,6 @@ import {
 import {
   X,
   Plus,
-  Coins,
   Calendar,
   Users,
   Clock,
@@ -36,44 +35,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
-interface Group {
-  id: string;
-  name: string;
-  subject: string;
-  studentsCount: number;
-}
-
-interface Student {
-  id: string;
-  fullName: string;
-  groupId: string;
-}
-
-interface MonthOption {
-  id: string;
-  year: number;
-  month: number;
-  month_name: string;
-}
-
-interface Transaction {
-  id: string;
-  type: "income" | "expense";
-  category: string;
-  amount: string;
-  description: string;
-  created_at: string;
-  created_by: string;
-  // For student payments
-  student?: {
-    id: string;
-    fullName: string;
-  };
-  group?: { id: string; name: string };
-  months?: MonthOption[];
-  months_paid?: number;
-}
+import {
+  groupsApi,
+  studentsApi,
+  paymentsApi,
+  expensesApi,
+  type Group,
+  type UserProfile,
+  type PaymentRecord,
+  type ExpenseRecord,
+} from "@/lib/api";
 
 const months = [
   { month: 1, month_name: "Yanvar" },
@@ -90,13 +61,6 @@ const months = [
   { month: 12, month_name: "Dekabr" },
 ];
 
-const incomeCategories = [
-  { value: "student_payment", label: "O'quvchi to'lovi" },
-  { value: "registration", label: "Ro'yxatdan o'tish to'lovi" },
-  { value: "certificate", label: "Sertifikat to'lovi" },
-  { value: "other_income", label: "Boshqa daromad" },
-];
-
 const expenseCategories = [
   { value: "salary", label: "Ish haqi" },
   { value: "rent", label: "Ijara to'lovi" },
@@ -106,72 +70,51 @@ const expenseCategories = [
   { value: "other_expense", label: "Boshqa xarajat" },
 ];
 
+type TransactionType = "income" | "expense";
+
 export default function AdminFinancePage() {
-  // Mock data
-  const [groups] = useState<Group[]>([
-    { id: "1", name: "Beginner A1", subject: "Ingliz tili", studentsCount: 12 },
-    { id: "2", name: "Advanced C1", subject: "Ingliz tili", studentsCount: 8 },
-    { id: "3", name: "Boshlang'ich", subject: "Matematika", studentsCount: 15 },
-  ]);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [allStudents, setAllStudents] = useState<UserProfile[]>([]);
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [allStudents] = useState<Student[]>([
-    { id: "1", fullName: "Abdullayev Vali", groupId: "1" },
-    { id: "2", fullName: "Karimova Malika", groupId: "1" },
-    { id: "3", fullName: "Rahimov Jasur", groupId: "2" },
-    { id: "4", fullName: "Azimova Dilnoza", groupId: "3" },
-  ]);
+  const loadData = useCallback(async () => {
+    try {
+      const [grps, studs, pays, exps] = await Promise.all([
+        groupsApi.list(),
+        studentsApi.list(),
+        paymentsApi.list(),
+        expensesApi.list(),
+      ]);
+      setGroups(grps);
+      setAllStudents(studs);
+      setPayments(pays);
+      setExpenses(exps);
+    } catch {
+      // handled by api client
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const [transactions, setTransactions] = useState<Transaction[]>([
-    {
-      id: "1",
-      type: "income",
-      category: "student_payment",
-      amount: "600000",
-      description: "Fevral va Mart oylik to'lovi",
-      created_at: new Date().toISOString(),
-      created_by: "Admin",
-      student: { id: "1", fullName: "Abdullayev Vali" },
-      group: { id: "1", name: "Beginner A1" },
-      months: [
-        { id: "1", year: 2026, month: 2, month_name: "Fevral" },
-        { id: "2", year: 2026, month: 3, month_name: "Mart" },
-      ],
-      months_paid: 2,
-    },
-    {
-      id: "2",
-      type: "expense",
-      category: "rent",
-      amount: "5000000",
-      description: "Fevral oyi ijara to'lovi",
-      created_at: new Date(2026, 1, 5).toISOString(),
-      created_by: "Admin",
-    },
-    {
-      id: "3",
-      type: "income",
-      category: "registration",
-      amount: "150000",
-      description: "Yangi o'quvchi ro'yxatdan o'tish",
-      created_at: new Date(2026, 1, 7).toISOString(),
-      created_by: "Admin",
-    },
-  ]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   // Form states
   const [showAddDrawer, setShowAddDrawer] = useState(false);
-  const [transactionType, setTransactionType] = useState<"income" | "expense">("income");
-  const [selectedCategory, setSelectedCategory] = useState("");
+  const [transactionType, setTransactionType] = useState<TransactionType>("income");
+  const [expenseCategory, setExpenseCategory] = useState("");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
+  const [recipient, setRecipient] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Student payment specific states
   const [selectedGroup, setSelectedGroup] = useState<string>("");
-  const [students, setStudents] = useState<Student[]>([]);
+  const [groupStudents, setGroupStudents] = useState<UserProfile[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<string>("");
-  const [selectedYear, setSelectedYear] = useState<string>("2026");
+  const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
   const [selectedMonths, setSelectedMonths] = useState<number[]>([]);
 
   // Filter states
@@ -179,8 +122,7 @@ export default function AdminFinancePage() {
   const [filterMonth, setFilterMonth] = useState<string>("all");
 
   // Delete modal
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [transactionToDelete, setTransactionToDelete] = useState<string | null>(null);
+  const [deleteModal, setDeleteModal] = useState<{ open: boolean; id: number | null; type: "payment" | "expense" | null }>({ open: false, id: null, type: null });
 
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
@@ -193,12 +135,7 @@ export default function AdminFinancePage() {
   const handleGroupChange = (groupId: string) => {
     setSelectedGroup(groupId);
     setSelectedStudent("");
-    if (groupId) {
-      const groupStudents = allStudents.filter((s) => s.groupId === groupId);
-      setStudents(groupStudents);
-    } else {
-      setStudents([]);
-    }
+    setGroupStudents(allStudents.filter((s) => String(typeof s.group === "object" ? s.group?.id : s.group) === groupId));
   };
 
   const toggleMonth = (month: number) => {
@@ -207,136 +144,145 @@ export default function AdminFinancePage() {
     );
   };
 
-  const handleAdd = () => {
+  const resetForm = () => {
+    setTransactionType("income");
+    setExpenseCategory("");
+    setAmount("");
+    setDescription("");
+    setRecipient("");
+    setSelectedGroup("");
+    setSelectedStudent("");
+    setSelectedYear(currentYear.toString());
+    setSelectedMonths([]);
+    setGroupStudents([]);
     setError("");
+  };
 
-    // Validate common fields
-    if (!selectedCategory || !amount) {
-      setError("Kategoriya va miqdorni kiriting");
-      return;
-    }
-
+  const handleAdd = async () => {
+    setError("");
     const num = parseFloat(amount);
     if (isNaN(num) || num <= 0) {
       setError("Miqdor ijobiy bo'lishi kerak");
       return;
     }
 
-    // Special validation for student payment
-    if (selectedCategory === "student_payment") {
-      if (!selectedGroup || !selectedStudent || selectedMonths.length === 0) {
-        setError("Guruh, o'quvchi va oylarni tanlang");
-        return;
+    try {
+      if (transactionType === "income") {
+        // Student payment
+        if (!selectedStudent || !selectedGroup || selectedMonths.length === 0) {
+          setError("Guruh, o'quvchi va oylarni tanlang");
+          return;
+        }
+        await paymentsApi.create({
+          student: Number(selectedStudent),
+          group: Number(selectedGroup),
+          amount: num,
+          months: selectedMonths.map((m) => ({ year: parseInt(selectedYear), month: m })),
+        });
+        await paymentsApi.list().then(setPayments);
+      } else {
+        // Expense
+        if (!expenseCategory || !description.trim()) {
+          setError("Kategoriya va izoh kiriting");
+          return;
+        }
+        await expensesApi.create({
+          amount: num,
+          reason: description.trim(),
+          recipient: recipient || "—",
+        });
+        await expensesApi.list().then(setExpenses);
       }
-
-      const student = allStudents.find((s) => s.id === selectedStudent);
-      const group = groups.find((g) => g.id === selectedGroup);
-
-      const newTransaction: Transaction = {
-        id: Date.now().toString(),
-        type: "income",
-        category: selectedCategory,
-        amount: num.toFixed(2),
-        description: `${selectedMonths.length} oylik to'lov`,
-        created_at: new Date().toISOString(),
-        created_by: "Admin",
-        student: { id: selectedStudent, fullName: student?.fullName || "" },
-        group: { id: selectedGroup, name: group?.name || "" },
-        months: selectedMonths.map((m) => ({
-          id: `${Date.now()}-${m}`,
-          year: parseInt(selectedYear),
-          month: m,
-          month_name: months.find((mo) => mo.month === m)?.month_name || "",
-        })),
-        months_paid: selectedMonths.length,
-      };
-
-      setTransactions([newTransaction, ...transactions]);
-    } else {
-      // Regular transaction
-      if (!description.trim()) {
-        setError("Izoh kiriting");
-        return;
-      }
-
-      const newTransaction: Transaction = {
-        id: Date.now().toString(),
-        type: transactionType,
-        category: selectedCategory,
-        amount: num.toFixed(2),
-        description: description.trim(),
-        created_at: new Date().toISOString(),
-        created_by: "Admin",
-      };
-
-      setTransactions([newTransaction, ...transactions]);
+      resetForm();
+      setShowAddDrawer(false);
+      showMessage("success", "Qo'shildi");
+    } catch {
+      showMessage("error", "Xatolik yuz berdi");
     }
-
-    resetForm();
-    setShowAddDrawer(false);
-    showMessage("success", "Tranzaksiya qo'shildi");
   };
 
-  const resetForm = () => {
-    setTransactionType("income");
-    setSelectedCategory("");
-    setAmount("");
-    setDescription("");
-    setSelectedGroup("");
-    setSelectedStudent("");
-    setSelectedYear(currentYear.toString());
-    setSelectedMonths([]);
-    setStudents([]);
-    setError("");
+  const handleDelete = async () => {
+    if (!deleteModal.id || !deleteModal.type) return;
+    try {
+      if (deleteModal.type === "payment") {
+        await paymentsApi.delete(deleteModal.id);
+        setPayments((p) => p.filter((x) => x.id !== deleteModal.id));
+      } else {
+        await expensesApi.delete(deleteModal.id);
+        setExpenses((e) => e.filter((x) => x.id !== deleteModal.id));
+      }
+      showMessage("success", "O'chirildi");
+    } catch {
+      showMessage("error", "O'chirishda xatolik");
+    }
+    setDeleteModal({ open: false, id: null, type: null });
   };
 
-  const openDeleteModal = (id: string) => {
-    setTransactionToDelete(id);
-    setIsDeleteDialogOpen(true);
+  // Unify transactions for display
+  type DisplayTx = {
+    id: number;
+    type: TransactionType;
+    title: string;
+    groupName?: string;
+    monthsPaid?: number;
+    amount: number;
+    description: string;
+    created_at: string;
+    deleteType: "payment" | "expense";
   };
 
-  const closeDeleteModal = () => {
-    setTransactionToDelete(null);
-    setIsDeleteDialogOpen(false);
-  };
-
-  const handleDelete = () => {
-    if (!transactionToDelete) return;
-    setTransactions(transactions.filter((t) => t.id !== transactionToDelete));
-    closeDeleteModal();
-    showMessage("success", "Tranzaksiya o'chirildi");
-  };
+  const allTransactions = useMemo<DisplayTx[]>(() => {
+    const pays: DisplayTx[] = payments.map((p) => {
+      const studentName =
+        p.student_name ||
+        (typeof p.student === "object" ? `${p.student.first_name} ${p.student.last_name}` : "O'quvchi");
+      const groupName =
+        p.group_name ||
+        (typeof p.group === "object" ? p.group.name : undefined);
+      return {
+        id: p.id,
+        type: "income",
+        title: studentName,
+        groupName,
+        monthsPaid: p.months_paid,
+        amount: parseFloat(String(p.amount)),
+        description: `${p.months_paid || 1} oylik to'lov`,
+        created_at: p.created_at,
+        deleteType: "payment",
+      };
+    });
+    const exps: DisplayTx[] = expenses.map((e) => ({
+      id: e.id,
+      type: "expense",
+      title: expenseCategories.find((c) => c.value === e.reason)?.label || e.reason || "Xarajat",
+      amount: parseFloat(String(e.amount)),
+      description: e.reason || "",
+      created_at: e.created_at,
+      deleteType: "expense",
+    }));
+    return [...pays, ...exps].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  }, [payments, expenses]);
 
   const filteredTransactions = useMemo(() => {
-    return transactions.filter((transaction) => {
-      const date = new Date(transaction.created_at);
-      const month = date.getMonth() + 1;
-
-      const typeMatch = filterType === "all" || transaction.type === filterType;
+    return allTransactions.filter((tx) => {
+      const month = new Date(tx.created_at).getMonth() + 1;
+      const typeMatch = filterType === "all" || tx.type === filterType;
       const monthMatch = filterMonth === "all" || month === parseInt(filterMonth);
-
       return typeMatch && monthMatch;
     });
-  }, [transactions, filterType, filterMonth]);
+  }, [allTransactions, filterType, filterMonth]);
 
-  const totalIncome = useMemo(() => {
-    return filteredTransactions
-      .filter((t) => t.type === "income")
-      .reduce((sum, t) => sum + parseFloat(t.amount), 0);
-  }, [filteredTransactions]);
-
-  const totalExpense = useMemo(() => {
-    return filteredTransactions
-      .filter((t) => t.type === "expense")
-      .reduce((sum, t) => sum + parseFloat(t.amount), 0);
-  }, [filteredTransactions]);
-
+  const totalIncome = useMemo(
+    () => filteredTransactions.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0),
+    [filteredTransactions]
+  );
+  const totalExpense = useMemo(
+    () => filteredTransactions.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0),
+    [filteredTransactions]
+  );
   const profit = totalIncome - totalExpense;
-
-  const getCategoryLabel = (category: string) => {
-    const allCategories = [...incomeCategories, ...expenseCategories];
-    return allCategories.find((c) => c.value === category)?.label || category;
-  };
 
   return (
     <div className="p-4 md:p-8 w-full space-y-6">
@@ -364,7 +310,6 @@ export default function AdminFinancePage() {
             Umumiy moliyaviy hisobot
           </p>
         </div>
-
         <Button
           size="icon"
           className="fixed bottom-6 right-6 md:right-8 rounded-full w-12 h-12 md:w-14 md:h-14 shadow-lg bg-primary hover:bg-primary/90 z-10"
@@ -375,53 +320,57 @@ export default function AdminFinancePage() {
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-4 md:p-5 bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Daromad</p>
-              <p className="text-xl md:text-2xl font-bold text-green-600">
-                {totalIncome.toLocaleString()} so'm
-              </p>
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[...Array(3)].map((_, i) => (
+            <Card key={i} className="p-5 h-24 animate-pulse bg-muted/30" />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="p-4 md:p-5 bg-linear-to-br from-green-500/10 to-green-600/5 border-green-500/20">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Daromad</p>
+                <p className="text-xl md:text-2xl font-bold text-green-600">
+                  {totalIncome.toLocaleString()} so'm
+                </p>
+              </div>
+              <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
+                <ArrowUpCircle className="w-6 h-6 text-green-600" />
+              </div>
             </div>
-            <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
-              <ArrowUpCircle className="w-6 h-6 text-green-600" />
-            </div>
-          </div>
-        </Card>
+          </Card>
 
-        <Card className="p-4 md:p-5 bg-gradient-to-br from-red-500/10 to-red-600/5 border-red-500/20">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Xarajat</p>
-              <p className="text-xl md:text-2xl font-bold text-red-600">
-                {totalExpense.toLocaleString()} so'm
-              </p>
+          <Card className="p-4 md:p-5 bg-linear-to-br from-red-500/10 to-red-600/5 border-red-500/20">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Xarajat</p>
+                <p className="text-xl md:text-2xl font-bold text-red-600">
+                  {totalExpense.toLocaleString()} so'm
+                </p>
+              </div>
+              <div className="w-12 h-12 bg-red-500/20 rounded-lg flex items-center justify-center">
+                <ArrowDownCircle className="w-6 h-6 text-red-600" />
+              </div>
             </div>
-            <div className="w-12 h-12 bg-red-500/20 rounded-lg flex items-center justify-center">
-              <ArrowDownCircle className="w-6 h-6 text-red-600" />
-            </div>
-          </div>
-        </Card>
+          </Card>
 
-        <Card className="p-4 md:p-5 bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Foyda</p>
-              <p
-                className={`text-xl md:text-2xl font-bold ${
-                  profit >= 0 ? "text-primary" : "text-red-600"
-                }`}
-              >
-                {profit.toLocaleString()} so'm
-              </p>
+          <Card className="p-4 md:p-5 bg-linear-to-br from-primary/10 to-primary/5 border-primary/20">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Foyda</p>
+                <p className={`text-xl md:text-2xl font-bold ${profit >= 0 ? "text-primary" : "text-red-600"}`}>
+                  {profit.toLocaleString()} so'm
+                </p>
+              </div>
+              <div className="w-12 h-12 bg-primary/20 rounded-lg flex items-center justify-center">
+                <TrendingUp className="w-6 h-6 text-primary" />
+              </div>
             </div>
-            <div className="w-12 h-12 bg-primary/20 rounded-lg flex items-center justify-center">
-              <TrendingUp className="w-6 h-6 text-primary" />
-            </div>
-          </div>
-        </Card>
-      </div>
+          </Card>
+        </div>
+      )}
 
       {/* Filter */}
       <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center justify-between bg-card p-4 rounded-xl border shadow-sm">
@@ -429,7 +378,6 @@ export default function AdminFinancePage() {
           <Calendar className="w-4 h-4 text-primary" />
           <span>Filter</span>
         </div>
-
         <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
           <Select value={filterType} onValueChange={setFilterType}>
             <SelectTrigger className="w-full sm:w-40 h-9 text-sm">
@@ -441,7 +389,6 @@ export default function AdminFinancePage() {
               <SelectItem value="expense">Xarajat</SelectItem>
             </SelectContent>
           </Select>
-
           <Select value={filterMonth} onValueChange={setFilterMonth}>
             <SelectTrigger className="w-full sm:w-40 h-9 text-sm">
               <SelectValue placeholder="Oy" />
@@ -456,7 +403,6 @@ export default function AdminFinancePage() {
             </SelectContent>
           </Select>
         </div>
-
         <Badge variant="secondary" className="font-mono text-xs md:text-sm">
           {filteredTransactions.length} ta tranzaksiya
         </Badge>
@@ -475,89 +421,41 @@ export default function AdminFinancePage() {
             </p>
           </Card>
         ) : (
-          filteredTransactions.map((transaction) => (
-            <Card
-              key={transaction.id}
-              className="p-4 md:p-5 hover:shadow-sm transition group relative"
-            >
+          filteredTransactions.map((tx) => (
+            <Card key={`${tx.deleteType}-${tx.id}`} className="p-4 md:p-5 hover:shadow-sm transition group relative">
               <div className="flex items-start gap-3 md:gap-4">
-                <div
-                  className={`w-10 h-10 md:w-12 md:h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                    transaction.type === "income"
-                      ? "bg-green-100"
-                      : "bg-red-100"
-                  }`}
-                >
-                  {transaction.type === "income" ? (
+                <div className={`w-10 h-10 md:w-12 md:h-12 rounded-lg flex items-center justify-center shrink-0 ${
+                  tx.type === "income" ? "bg-green-100" : "bg-red-100"
+                }`}>
+                  {tx.type === "income" ? (
                     <TrendingUp className="w-5 h-5 md:w-6 md:h-6 text-green-700" />
                   ) : (
                     <TrendingDown className="w-5 h-5 md:w-6 md:h-6 text-red-700" />
                   )}
                 </div>
-
                 <div className="flex-1 min-w-0 relative">
                   <div className="flex flex-wrap items-center gap-2 text-sm md:text-base">
-                    <h3 className="font-semibold">
-                      {transaction.student
-                        ? transaction.student.fullName
-                        : getCategoryLabel(transaction.category)}
-                    </h3>
-                    <Badge
-                      variant={
-                        transaction.type === "income" ? "default" : "destructive"
-                      }
-                      className="text-xs"
-                    >
-                      {transaction.type === "income" ? "Daromad" : "Xarajat"}
+                    <h3 className="font-semibold">{tx.title}</h3>
+                    <Badge variant={tx.type === "income" ? "default" : "destructive"} className="text-xs">
+                      {tx.type === "income" ? "Daromad" : "Xarajat"}
                     </Badge>
-                    {transaction.group && (
-                      <Badge variant="secondary" className="text-xs">
-                        {transaction.group.name}
-                      </Badge>
+                    {tx.groupName && (
+                      <Badge variant="secondary" className="text-xs">{tx.groupName}</Badge>
                     )}
-                    {transaction.months_paid && (
-                      <Badge variant="outline" className="text-xs">
-                        {transaction.months_paid} oy
-                      </Badge>
+                    {tx.monthsPaid && (
+                      <Badge variant="outline" className="text-xs">{tx.monthsPaid} oy</Badge>
                     )}
                   </div>
-                  <p
-                    className={`font-medium text-sm md:text-base mt-1 ${
-                      transaction.type === "income"
-                        ? "text-green-600"
-                        : "text-red-600"
-                    }`}
-                  >
-                    {transaction.type === "income" ? "+" : "-"}{" "}
-                    {parseFloat(transaction.amount).toLocaleString()} so'm
+                  <p className={`font-medium text-sm md:text-base mt-1 ${tx.type === "income" ? "text-green-600" : "text-red-600"}`}>
+                    {tx.type === "income" ? "+" : "-"} {tx.amount.toLocaleString()} so'm
                   </p>
-                  <p className="text-xs md:text-sm text-muted-foreground mt-1">
-                    {transaction.description}
-                  </p>
-                  {transaction.months && transaction.months.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {transaction.months.map((m) => (
-                        <Badge key={m.id} variant="outline" className="text-xs">
-                          {m.month_name.slice(0, 3)} {m.year}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex flex-wrap items-center gap-2 md:gap-3 text-xs text-muted-foreground mt-2">
-                    <span className="flex items-center gap-1">
-                      <Users className="w-3 h-3" />
-                      {transaction.created_by}
-                    </span>
-                    <span>•</span>
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {format(new Date(transaction.created_at), "dd MMM • HH:mm")}
-                    </span>
+                  <p className="text-xs md:text-sm text-muted-foreground mt-1">{tx.description}</p>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2">
+                    <Clock className="w-3 h-3" />
+                    {format(new Date(tx.created_at), "dd MMM • HH:mm")}
                   </div>
-
-                  {/* Delete button */}
                   <button
-                    onClick={() => openDeleteModal(transaction.id)}
+                    onClick={() => setDeleteModal({ open: true, id: tx.id, type: tx.deleteType })}
                     className="absolute top-2 right-2 p-1.5 hover:bg-muted rounded-lg transition"
                     title="O'chirish"
                   >
@@ -570,8 +468,8 @@ export default function AdminFinancePage() {
         )}
       </div>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      {/* Delete Dialog */}
+      <Dialog open={deleteModal.open} onOpenChange={(open) => !open && setDeleteModal({ open: false, id: null, type: null })}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Tranzaksiyani o'chirish</DialogTitle>
@@ -581,18 +479,10 @@ export default function AdminFinancePage() {
               Bu amalni ortga qaytarib bo'lmaydi. Tranzaksiya butunlay o'chib ketadi.
             </p>
             <div className="flex gap-3">
-              <Button
-                variant="outline"
-                onClick={closeDeleteModal}
-                className="flex-1"
-              >
+              <Button variant="outline" onClick={() => setDeleteModal({ open: false, id: null, type: null })} className="flex-1">
                 Bekor qilish
               </Button>
-              <Button
-                variant="destructive"
-                onClick={handleDelete}
-                className="flex-1"
-              >
+              <Button variant="destructive" onClick={handleDelete} className="flex-1">
                 O'chirish
               </Button>
             </div>
@@ -603,11 +493,7 @@ export default function AdminFinancePage() {
       {/* Add Transaction Drawer */}
       {showAddDrawer && (
         <>
-          <div
-            className="fixed inset-0 bg-black/50 z-40"
-            onClick={() => setShowAddDrawer(false)}
-          />
-
+          <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setShowAddDrawer(false)} />
           {/* Mobile */}
           <div className="md:hidden fixed bottom-0 left-0 right-0 bg-card rounded-t-2xl z-50 h-[85vh] overflow-hidden animate-in slide-in-from-bottom">
             <div className="flex flex-col h-full">
@@ -616,13 +502,9 @@ export default function AdminFinancePage() {
               </div>
               <div className="p-4 border-b flex justify-between items-center">
                 <h2 className="text-lg font-bold flex items-center gap-2">
-                  <Plus className="w-5 h-5" />
-                  Yangi tranzaksiya
+                  <Plus className="w-5 h-5" /> Yangi tranzaksiya
                 </h2>
-                <button
-                  onClick={() => setShowAddDrawer(false)}
-                  className="p-2 hover:bg-muted rounded-lg"
-                >
+                <button onClick={() => setShowAddDrawer(false)} className="p-2 hover:bg-muted rounded-lg">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -631,19 +513,14 @@ export default function AdminFinancePage() {
               </div>
             </div>
           </div>
-
           {/* Desktop */}
           <div className="hidden md:block fixed right-0 top-0 h-full w-96 bg-card shadow-2xl z-50 overflow-y-auto animate-in slide-in-from-right">
             <div className="p-6 space-y-5">
               <div className="flex justify-between items-center">
                 <h2 className="text-xl font-bold flex items-center gap-2">
-                  <Plus className="w-5 h-5" />
-                  Yangi tranzaksiya
+                  <Plus className="w-5 h-5" /> Yangi tranzaksiya
                 </h2>
-                <button
-                  onClick={() => setShowAddDrawer(false)}
-                  className="p-2 hover:bg-muted rounded-lg"
-                >
+                <button onClick={() => setShowAddDrawer(false)} className="p-2 hover:bg-muted rounded-lg">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -656,46 +533,27 @@ export default function AdminFinancePage() {
   );
 
   function renderForm() {
-    const isStudentPayment = selectedCategory === "student_payment";
+    const isIncome = transactionType === "income";
 
     return (
       <>
         <div>
           <Label className="text-sm">Turi</Label>
-          <Select value={transactionType} onValueChange={(v: "income" | "expense") => {
+          <Select value={transactionType} onValueChange={(v: TransactionType) => {
             setTransactionType(v);
-            setSelectedCategory("");
+            setExpenseCategory("");
           }}>
             <SelectTrigger className="mt-1 h-10">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="income">Daromad</SelectItem>
+              <SelectItem value="income">Daromad (O'quvchi to'lovi)</SelectItem>
               <SelectItem value="expense">Xarajat</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
-        <div>
-          <Label className="text-sm">Kategoriya</Label>
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="mt-1 h-10">
-              <SelectValue placeholder="Kategoriyani tanlang" />
-            </SelectTrigger>
-            <SelectContent>
-              {(transactionType === "income"
-                ? incomeCategories
-                : expenseCategories
-              ).map((cat) => (
-                <SelectItem key={cat.value} value={cat.value}>
-                  {cat.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {isStudentPayment ? (
+        {isIncome ? (
           <>
             <div>
               <Label className="text-sm">Guruh</Label>
@@ -705,8 +563,8 @@ export default function AdminFinancePage() {
                 </SelectTrigger>
                 <SelectContent>
                   {groups.map((g) => (
-                    <SelectItem key={g.id} value={g.id}>
-                      {g.name} ({g.studentsCount} o'quvchi)
+                    <SelectItem key={g.id} value={String(g.id)}>
+                      {g.name} ({g.students_count} o'quvchi)
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -715,18 +573,14 @@ export default function AdminFinancePage() {
 
             <div>
               <Label className="text-sm">O'quvchi</Label>
-              <Select
-                value={selectedStudent}
-                onValueChange={setSelectedStudent}
-                disabled={!selectedGroup}
-              >
+              <Select value={selectedStudent} onValueChange={setSelectedStudent} disabled={!selectedGroup}>
                 <SelectTrigger className="mt-1 h-10">
                   <SelectValue placeholder="O'quvchini tanlang" />
                 </SelectTrigger>
                 <SelectContent>
-                  {students.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.fullName}
+                  {groupStudents.map((s) => (
+                    <SelectItem key={s.id} value={String(s.id)}>
+                      {s.first_name} {s.last_name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -741,9 +595,7 @@ export default function AdminFinancePage() {
                 </SelectTrigger>
                 <SelectContent>
                   {years.map((y) => (
-                    <SelectItem key={y} value={y.toString()}>
-                      {y}
-                    </SelectItem>
+                    <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -751,7 +603,7 @@ export default function AdminFinancePage() {
 
             <div>
               <Label className="text-sm">Oylar</Label>
-              <div className="grid grid-cols-3 gap-2 mt-2 max-h-[200px] overflow-y-auto">
+              <div className="grid grid-cols-3 gap-2 mt-2 max-h-50 overflow-y-auto">
                 {months.map((m) => (
                   <button
                     key={m.month}
@@ -766,30 +618,51 @@ export default function AdminFinancePage() {
                   </button>
                 ))}
               </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                Tanlangan: {selectedMonths.length} oy
-              </p>
+              <p className="text-xs text-muted-foreground mt-2">Tanlangan: {selectedMonths.length} oy</p>
             </div>
           </>
         ) : (
-          <div>
-            <Label htmlFor="description" className="text-sm">
-              Izoh
-            </Label>
-            <Textarea
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Tranzaksiya haqida ma'lumot..."
-              className="mt-1 min-h-20"
-            />
-          </div>
+          <>
+            <div>
+              <Label className="text-sm">Kategoriya</Label>
+              <Select value={expenseCategory} onValueChange={setExpenseCategory}>
+                <SelectTrigger className="mt-1 h-10">
+                  <SelectValue placeholder="Kategoriyani tanlang" />
+                </SelectTrigger>
+                <SelectContent>
+                  {expenseCategories.map((cat) => (
+                    <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="recipient" className="text-sm">Qabul qiluvchi</Label>
+              <Input
+                id="recipient"
+                value={recipient}
+                onChange={(e) => setRecipient(e.target.value)}
+                placeholder="Ism yoki tashkilot"
+                className="mt-1 h-10"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="description" className="text-sm">Izoh</Label>
+              <Textarea
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Xarajat haqida ma'lumot..."
+                className="mt-1 min-h-20"
+              />
+            </div>
+          </>
         )}
 
         <div>
-          <Label htmlFor="amount" className="text-sm">
-            Miqdor (so'm)
-          </Label>
+          <Label htmlFor="amount" className="text-sm">Miqdor (so'm)</Label>
           <Input
             id="amount"
             type="number"
@@ -808,11 +681,7 @@ export default function AdminFinancePage() {
           </div>
         )}
 
-        <Button
-          onClick={handleAdd}
-          disabled={!selectedCategory || !amount}
-          className="w-full h-10 text-sm"
-        >
+        <Button onClick={handleAdd} disabled={!amount} className="w-full h-10 text-sm">
           <Plus className="w-4 h-4 mr-2" />
           Qo'shish
         </Button>

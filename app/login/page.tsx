@@ -9,9 +9,8 @@ import { useAuth } from "@/context/AuthContext";
 import { GraduationCap } from "lucide-react";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [userType, setUserType] = useState("admin");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
@@ -20,18 +19,22 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     setIsLoading(true);
-
     try {
-      await login(email, password, userType);
-    } catch (err: any) {
-      setError(err.message || "Kirishda xatolik yuz berdi");
+      await login(username, password);
+    } catch (err: unknown) {
+      const apiError = err as Record<string, unknown>;
+      const message =
+        (apiError?.detail as string) ||
+        (apiError?.non_field_errors as string[])?.join(", ") ||
+        "Foydalanuvchi nomi yoki parol noto'g'ri";
+      setError(message);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-accent/5 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-linear-to-br from-primary/5 to-accent/5 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         <Card className="p-8 shadow-lg rounded-2xl border border-border/50">
           {/* Logo */}
@@ -58,16 +61,17 @@ export default function LoginPage() {
           {/* Form */}
           <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium text-foreground">
-                Email
+              <label htmlFor="username" className="text-sm font-medium text-foreground">
+                Foydalanuvchi nomi
               </label>
               <Input
-                id="email"
-                type="email"
-                placeholder="email@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="username"
+                type="text"
+                placeholder="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 className="bg-background border-border"
+                autoComplete="username"
                 required
               />
             </div>
@@ -83,46 +87,9 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="bg-background border-border"
+                autoComplete="current-password"
                 required
               />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">
-                Foydalanuvchi turi
-              </label>
-              <div className="flex gap-4">
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    value="admin"
-                    checked={userType === "admin"}
-                    onChange={(e) => setUserType(e.target.value)}
-                    className="w-4 h-4 text-primary"
-                  />
-                  <span className="text-sm">Admin</span>
-                </label>
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    value="staff"
-                    checked={userType === "staff"}
-                    onChange={(e) => setUserType(e.target.value)}
-                    className="w-4 h-4 text-primary"
-                  />
-                  <span className="text-sm">Xodim</span>
-                </label>
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    value="student"
-                    checked={userType === "student"}
-                    onChange={(e) => setUserType(e.target.value)}
-                    className="w-4 h-4 text-primary"
-                  />
-                  <span className="text-sm">O'quvchi</span>
-                </label>
-              </div>
             </div>
 
             <Button

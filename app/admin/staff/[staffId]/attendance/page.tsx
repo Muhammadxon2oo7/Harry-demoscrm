@@ -1,106 +1,48 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StaffAttendanceCalendar } from "@/components/admin/staff-attendance-calendar";
-
-// Mock data - replace with real API call
-const mockStaffData = {
-  "1": { name: "Aliyev Jasur", sessions: [] },
-  "2": { name: "Karimova Dilnoza", sessions: [] },
-  "3": { name: "Rahimov Bobur", sessions: [] },
-};
-
-const classSessions = [
-  {
-    id: "1",
-    staffId: "1",
-    staffName: "Aliyev Jasur",
-    groupName: "Beginner A1",
-    date: "2026-02-09",
-    time: "09:00 - 11:00",
-    status: "attended" as const,
-  },
-  {
-    id: "2",
-    staffId: "1",
-    staffName: "Aliyev Jasur",
-    groupName: "Intermediate B1",
-    date: "2026-02-09",
-    time: "14:00 - 16:00",
-    status: "attended" as const,
-  },
-  {
-    id: "3",
-    staffId: "1",
-    staffName: "Aliyev Jasur",
-    groupName: "Advanced C1",
-    date: "2026-02-08",
-    time: "10:00 - 12:00",
-    status: "absent" as const,
-  },
-  {
-    id: "4",
-    staffId: "1",
-    staffName: "Aliyev Jasur",
-    groupName: "Beginner A1",
-    date: "2026-02-07",
-    time: "09:00 - 11:00",
-    status: "replaced" as const,
-    replacedBy: "2",
-    replacedByName: "Karimova Dilnoza",
-  },
-  {
-    id: "5",
-    staffId: "2",
-    staffName: "Karimova Dilnoza",
-    groupName: "Kids Level 1",
-    date: "2026-02-09",
-    time: "11:00 - 13:00",
-    status: "attended" as const,
-  },
-  {
-    id: "6",
-    staffId: "2",
-    staffName: "Karimova Dilnoza",
-    groupName: "Kids Level 2",
-    date: "2026-02-08",
-    time: "11:00 - 13:00",
-    status: "attended" as const,
-  },
-  {
-    id: "7",
-    staffId: "3",
-    staffName: "Rahimov Bobur",
-    groupName: "IELTS Preparation",
-    date: "2026-02-09",
-    time: "15:00 - 17:00",
-    status: "attended" as const,
-  },
-  {
-    id: "8",
-    staffId: "3",
-    staffName: "Rahimov Bobur",
-    groupName: "Business English",
-    date: "2026-02-08",
-    time: "16:00 - 18:00",
-    status: "absent" as const,
-  },
-];
+import { workersApi, workLogsApi, type UserProfile, type WorkLog } from "@/lib/api";
 
 export default function StaffAttendancePage() {
   const params = useParams();
   const router = useRouter();
-  const staffId = params.staffId as string;
+  const staffId = Number(params.staffId);
 
-  const staffData = mockStaffData[staffId as keyof typeof mockStaffData];
-  const staffSessions = classSessions.filter(
-    (session) => session.staffId === staffId
-  );
+  const [staff, setStaff] = useState<UserProfile | null>(null);
+  const [sessions, setSessions] = useState<WorkLog[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  if (!staffData) {
+  useEffect(() => {
+    async function load() {
+      try {
+        const [staffData, logs] = await Promise.all([
+          workersApi.get(staffId),
+          workLogsApi.list({ employee: staffId }),
+        ]);
+        setStaff(staffData);
+        setSessions(logs);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    if (staffId) load();
+  }, [staffId]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <p className="text-muted-foreground">Yuklanmoqda...</p>
+      </div>
+    );
+  }
+
+  if (!staff) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
@@ -114,12 +56,26 @@ export default function StaffAttendancePage() {
     );
   }
 
+  const staffName = `${staff.first_name} ${staff.last_name}`.trim() || staff.username;
+
+  // Map WorkLog records to the shape StaffAttendanceCalendar expects
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const calendarSessions = sessions.map((log): any => ({
+    id: String(log.id),
+    staffId: String(log.employee),
+    staffName,
+    groupName: log.note || "",
+    date: log.date,
+    time: "",
+    status: log.status ? ("attended" as const) : ("absent" as const),
+  }));
+
   return (
     <div className="p-6 space-y-6">
       <StaffAttendanceCalendar
-        staffId={staffId}
-        staffName={staffData.name}
-        sessions={staffSessions}
+        staffId={String(staffId)}
+        staffName={staffName}
+        sessions={calendarSessions}
       />
     </div>
   );

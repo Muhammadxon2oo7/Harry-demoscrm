@@ -34,7 +34,7 @@ export default function StudentDashboard() {
         {/* Welcome Text */}
         <div className="space-y-3">
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-            Xush kelibsiz, {user?.fullName || "O'quvchi"}!
+            Xush kelibsiz, {user?.full_name || user?.username || "O'quvchi"}!
           </h1>
           <p className="text-sm md:text-base text-muted-foreground leading-relaxed">
             Safimizga qo'shilganingizdan juda xursandmiz.
