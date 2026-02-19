@@ -19,33 +19,25 @@ const MOCK_BASE_URL =
 
 // ─── Token Helpers ─────────────────────────────────────────────────────────────
 
-import { getCookie, setCookie, deleteCookie } from "./cookies";
-
-/** Cookie names – keep in sync with app/api/auth/login/route.ts and middleware.ts */
-const COOKIE_ACCESS = "hp_access";
-const COOKIE_REFRESH = "hp_refresh";
-const COOKIE_USER = "hp_user";
-
 export const getAccessToken = (): string | null => {
   if (typeof window === "undefined") return null;
-  return getCookie(COOKIE_ACCESS);
+  return localStorage.getItem("hp_access_token");
 };
 
 export const getRefreshToken = (): string | null => {
   if (typeof window === "undefined") return null;
-  return getCookie(COOKIE_REFRESH);
+  return localStorage.getItem("hp_refresh_token");
 };
 
-/** Only used as a fallback after token refresh – login sets cookies server-side. */
 export const setTokens = (access: string, refresh: string): void => {
-  setCookie(COOKIE_ACCESS, access, 1);
-  setCookie(COOKIE_REFRESH, refresh, 3);
+  localStorage.setItem("hp_access_token", access);
+  localStorage.setItem("hp_refresh_token", refresh);
 };
 
 export const clearTokens = (): void => {
-  deleteCookie(COOKIE_ACCESS);
-  deleteCookie(COOKIE_REFRESH);
-  deleteCookie(COOKIE_USER);
+  localStorage.removeItem("hp_access_token");
+  localStorage.removeItem("hp_refresh_token");
+  localStorage.removeItem("hp_user");
 };
 
 // ─── Request Helper ────────────────────────────────────────────────────────────
@@ -244,26 +236,75 @@ export interface DashboardData {
   attendance: { employees_present_today: number; total_employees: number };
 }
 
+export interface ExamOption {
+  id: number;
+  text: string;
+  is_correct: boolean;
+  order?: number;
+}
+
+export interface ExamQuestion {
+  id: number;
+  text: string;
+  type: "test" | "written";
+  order?: number;
+  options?: ExamOption[];
+  written_answer_sample?: string | null;
+}
+
 export interface ExamRecord {
   id: number;
   subject: number;
-  name: string;
+  subject_name: string;
+  title: string;
   code: string;
+  description?: string;
+  time_limit: number;
+  is_published: boolean;
+  is_active: boolean;
   date: string;
-  created_by: number;
+  questions_count?: number;
+  participants_count?: number;
+  questions?: ExamQuestion[];
   created_at: string;
+}
+
+export interface ExamSubmitAnswer {
+  question_id: number;
+  option_id?: number;
+  written_answer?: string;
 }
 
 export interface ExamResultRecord {
   id: number;
   exam: number;
+  exam_title?: string;
   student: number;
   score: number;
   correct_answers: number;
   total_questions: number;
   is_checked: boolean;
-  checked_by: number;
+  checked_by: number | null;
+  answers?: unknown[];
   created_at: string;
+}
+
+export interface MessageLog {
+  id: number;
+  message: number;
+  recipient: number;
+  recipient_name: string;
+  status: "pending" | "sent" | "failed";
+  error: string | null;
+  sent_at: string | null;
+}
+
+export interface MessageRecord {
+  id: number;
+  text: string;
+  recipients: number[];
+  created_at: string;
+  logs: MessageLog[];
 }
 
 export interface WorkLog {
@@ -271,7 +312,7 @@ export interface WorkLog {
   employee: number;
   date: string;
   status: boolean;
-  note: string;
+  note: string | null;
   created_at: string;
 }
 
@@ -365,6 +406,7 @@ export const groupsApi = {
   patch: (id: number, data: Partial<GroupCreateInput>) =>
     api.patch<Group>(`${BASE_URL}/groups/${id}/`, data),
   delete: (id: number) => api.delete<void>(`${BASE_URL}/groups/${id}/`),
+  rating: () => api.get<Group[]>(`${BASE_URL}/groups/rating/`),
 };
 
 // ─── Owners ────────────────────────────────────────────────────────────────────
@@ -422,6 +464,10 @@ export const studentsApi = {
   patch: (id: number, data: Partial<UserCreateInput>) =>
     api.patch<UserProfile>(`${BASE_URL}/students/${id}/`, data),
   delete: (id: number) => api.delete<void>(`${BASE_URL}/students/${id}/`),
+  rating: (groupId?: number) =>
+    api.get<UserProfile[]>(
+      `${BASE_URL}/students/rating/${groupId != null ? `?group_id=${groupId}` : ""}`
+    ),
 };
 
 // ─── Attendance ────────────────────────────────────────────────────────────────
@@ -506,11 +552,27 @@ export const expensesApi = {
 
 // ─── Exams ─────────────────────────────────────────────────────────────────────
 
+export interface ExamQuestionInput {
+  text: string;
+  type: "test" | "written";
+  order?: number;
+  options?: { text: string; is_correct: boolean; order?: number }[];
+  written_answer_sample?: string;
+}
+
 export interface ExamCreateInput {
   subject: number;
-  name: string;
-  code: string;
-  date: string;
+  title: string;
+  description?: string;
+  time_limit?: number;
+  is_published?: boolean;
+  date?: string;
+  questions?: ExamQuestionInput[];
+}
+
+export interface MessageCreateInput {
+  text: string;
+  recipient_ids: number[];
 }
 
 export const examsApi = {
@@ -523,6 +585,14 @@ export const examsApi = {
   delete: (id: number) => api.delete<void>(`${BASE_URL}/exams/${id}/`),
   enterCode: (code: string) =>
     api.post<ExamRecord>(`${BASE_URL}/exams/enter-code/`, { code }),
+  publish: (id: number) =>
+    api.post<{ status: string }>(`${BASE_URL}/exams/${id}/publish/`),
+  unpublish: (id: number) =>
+    api.post<{ status: string }>(`${BASE_URL}/exams/${id}/unpublish/`),
+  copy: (id: number) =>
+    api.post<ExamRecord>(`${BASE_URL}/exams/${id}/copy/`),
+  submit: (id: number, answers: ExamSubmitAnswer[]) =>
+    api.post<ExamResultRecord>(`${BASE_URL}/exams/${id}/submit/`, { answers }),
 };
 
 // ─── Exam Results ──────────────────────────────────────────────────────────────
@@ -551,6 +621,17 @@ export const workLogsApi = {
       : "";
     return api.get<WorkLog[]>(`${BASE_URL}/work-logs/${qs}`);
   },
+  get: (id: number) => api.get<WorkLog>(`${BASE_URL}/work-logs/${id}/`),
+};
+
+// ─── Messages ──────────────────────────────────────────────────────────────────
+
+export const messagesApi = {
+  list: () => api.get<MessageRecord[]>(`${BASE_URL}/messages/`),
+  get: (id: number) => api.get<MessageRecord>(`${BASE_URL}/messages/${id}/`),
+  send: (data: MessageCreateInput) =>
+    api.post<MessageRecord>(`${BASE_URL}/messages/`, data),
+  delete: (id: number) => api.delete<void>(`${BASE_URL}/messages/${id}/`),
 };
 
 // ─── Mock Tests ────────────────────────────────────────────────────────────────
@@ -626,11 +707,10 @@ export async function getStaffGroups(): Promise<Group[]> {
   return groupsApi.list();
 }
 
-/** Stub: send message to students via Telegram – no backend endpoint yet */
+/** Send message to students via Telegram using the messages API */
 export async function sendMessageToStudents(
-  _studentIds: number[],
-  _message: string
+  studentIds: number[],
+  message: string
 ): Promise<void> {
-  // No messaging endpoint available in current API
-  return Promise.resolve();
+  await messagesApi.send({ text: message, recipient_ids: studentIds });
 }

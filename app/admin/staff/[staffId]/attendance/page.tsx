@@ -71,7 +71,17 @@ export default function StaffAttendancePage() {
   }));
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="md:px-6 space-y-4">
+      {/* Back button */}
+      <Button
+        variant="ghost"
+        onClick={() => router.push("/admin/staff")}
+        className="flex items-center gap-2 -ml-2 text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        <span>Xodimlar</span>
+      </Button>
+
       <StaffAttendanceCalendar
         staffId={String(staffId)}
         staffName={staffName}

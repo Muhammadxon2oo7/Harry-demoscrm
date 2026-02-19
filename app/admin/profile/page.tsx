@@ -452,7 +452,7 @@ export default function AdminProfilePage() {
                 placeholder="Kamida 6 ta belgi" />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="a_pass">Parol <span className="text-red-500">*</span></Label>
+              <Label htmlFor="a_pass">Parol<span className="text-red-500">*</span></Label>
               <Input id="a_pass" type="password" value={newAdmin.password}
                 onChange={(e) => setNewAdmin((f) => ({ ...f, password: e.target.value }))}
                 placeholder="Kamida 8 ta belgi" />

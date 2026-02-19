@@ -1,216 +1,204 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  Plus, Search, Edit, Trash2, Copy, Eye, BarChart,
-  Clock, FileText, Users,
+  Plus, Search, Trash2, Copy, Clock, FileText, Users,
+  Globe, GlobeLock, Pencil, CheckCircle2, RefreshCw,
 } from "lucide-react";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { examsApi, type ExamRecord } from "@/lib/api";
 
-export interface LocalTest {
-  id: string;
-  name: string;
-  subject: string;
-  testCode: string;
-  questionCount: number;
-  timeLimit?: number;
-  description?: string;
-  createdAt: string;
-  status: "draft" | "published";
-  completedCount: number;
-  averageScore?: number;
-  questions: unknown[];
-}
-
-const STORAGE_KEY = "hpa_tests";
-
-export function loadTests(): LocalTest[] {
-  if (typeof window === "undefined") return [];
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-  } catch { return []; }
-}
-
-export function saveTests(tests: LocalTest[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(tests));
-}
-
-function generateCode() {
-  return Math.random().toString(36).substring(2, 8).toUpperCase();
+function fmtDate(s: string) {
+  return new Date(s).toLocaleDateString("uz-UZ", { year: "numeric", month: "short", day: "numeric" });
 }
 
 export default function AdminTestsPage() {
   const router = useRouter();
-  const [tests, setTests] = useState<LocalTest[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [testToDelete, setTestToDelete] = useState<string | null>(null);
 
-  useEffect(() => { setTests(loadTests()); }, []);
+  const [exams, setExams] = useState<ExamRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
-  const filtered = tests.filter((t) =>
-    t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    t.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    t.testCode.toLowerCase().includes(searchQuery.toLowerCase())
+  const loadExams = useCallback(() => {
+    setLoading(true);
+    examsApi.list().then(setExams).catch(console.error).finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { loadExams(); }, [loadExams]);
+
+  const handlePublish = async (exam: ExamRecord) => {
+    try {
+      exam.is_published ? await examsApi.unpublish(exam.id) : await examsApi.publish(exam.id);
+      loadExams();
+    } catch (e) { console.error(e); }
+  };
+
+  const handleCopy = async (id: number) => {
+    try { await examsApi.copy(id); loadExams(); } catch (e) { console.error(e); }
+  };
+
+  const handleDelete = async () => {
+    if (deleteId == null) return;
+    try { await examsApi.delete(deleteId); loadExams(); } catch (e) { console.error(e); }
+    finally { setDeleteId(null); }
+  };
+
+  const filtered = exams.filter((e) =>
+    [e.title, e.subject_name, e.code].some((v) => v?.toLowerCase().includes(search.toLowerCase()))
   );
 
-  const handleDuplicate = (test: LocalTest) => {
-    const newTest: LocalTest = {
-      ...test,
-      id: Date.now().toString(),
-      name: `${test.name} (nusxa)`,
-      testCode: generateCode(),
-      status: "draft",
-      completedCount: 0,
-      averageScore: undefined,
-      createdAt: new Date().toISOString().slice(0, 10),
-    };
-    const updated = [newTest, ...tests];
-    setTests(updated);
-    saveTests(updated);
-  };
-
-  const handleDelete = () => {
-    if (!testToDelete) return;
-    const updated = tests.filter((t) => t.id !== testToDelete);
-    setTests(updated);
-    saveTests(updated);
-    setIsDeleteDialogOpen(false);
-    setTestToDelete(null);
-  };
+  const published = exams.filter((e) => e.is_published).length;
+  const totalParticipants = exams.reduce((s, e) => s + (e.participants_count ?? 0), 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 py-6 md:px-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold">Testlar</h1>
-          <p className="text-muted-foreground">Testlar yaratish va boshqarish</p>
+          <p className="text-muted-foreground">Imtihonlarni yaratish va boshqarish</p>
         </div>
-        <Button onClick={() => router.push("/admin/tests/create")} size="lg">
-          <Plus className="w-5 h-5 mr-2" />
-          Yangi test yaratish
-        </Button>
-      </div>
-
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
-        <Input
-          placeholder="Test nomi, fan yoki kod bilan qidirish..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10"
-        />
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={loadExams}>
+            <RefreshCw className="w-4 h-4 mr-2" />Yangilash
+          </Button>
+          <Button onClick={() => router.push("/admin/tests/create")}>
+            <Plus className="w-4 h-4 mr-2" />Yangi imtihon
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="p-4 flex items-center justify-between">
-          <div>
-            <p className="text-sm text-muted-foreground">Jami testlar</p>
-            <p className="text-2xl font-bold">{tests.length}</p>
-          </div>
-          <FileText className="w-8 h-8 text-primary" />
-        </Card>
-        <Card className="p-4 flex items-center justify-between">
-          <div>
-            <p className="text-sm text-muted-foreground">Nashr etilgan</p>
-            <p className="text-2xl font-bold">{tests.filter((t) => t.status === "published").length}</p>
-          </div>
-          <Eye className="w-8 h-8 text-green-500" />
-        </Card>
-        <Card className="p-4 flex items-center justify-between">
-          <div>
-            <p className="text-sm text-muted-foreground">Qoralama</p>
-            <p className="text-2xl font-bold">{tests.filter((t) => t.status === "draft").length}</p>
-          </div>
-          <Edit className="w-8 h-8 text-orange-500" />
-        </Card>
-        <Card className="p-4 flex items-center justify-between">
-          <div>
-            <p className="text-sm text-muted-foreground">Ishtirokchilar</p>
-            <p className="text-2xl font-bold">{tests.reduce((a, t) => a + t.completedCount, 0)}</p>
-          </div>
-          <Users className="w-8 h-8 text-blue-500" />
-        </Card>
+        {[
+          { label: "Jami imtihonlar", value: exams.length, icon: FileText, color: "text-primary" },
+          { label: "Nashr etilgan", value: published, icon: Globe, color: "text-green-500" },
+          { label: "Qoralama", value: exams.length - published, icon: GlobeLock, color: "text-orange-500" },
+          { label: "Jami ishtirokchilar", value: totalParticipants, icon: CheckCircle2, color: "text-blue-500" },
+        ].map(({ label, value, icon: Icon, color }) => (
+          <Card key={label} className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground">{label}</p>
+              <p className="text-2xl font-bold">{value}</p>
+            </div>
+            <Icon className={`w-8 h-8 opacity-70 ${color}`} />
+          </Card>
+        ))}
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
+        <Input
+          placeholder="Nomi, kodi yoki fan bilan qidirish..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-10"
+        />
       </div>
 
       {/* List */}
       <div className="space-y-4">
-        {filtered.length === 0 ? (
+        {loading ? (
+          [1, 2, 3].map((i) => (
+            <Card key={i} className="p-6 animate-pulse">
+              <div className="h-5 bg-muted rounded w-48 mb-3" />
+              <div className="h-4 bg-muted rounded w-32" />
+            </Card>
+          ))
+        ) : filtered.length === 0 ? (
           <Card className="p-12 text-center">
-            <FileText className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Test topilmadi</h3>
+            <FileText className="w-14 h-14 mx-auto text-muted-foreground mb-4 opacity-40" />
+            <h3 className="text-lg font-semibold mb-2">Imtihon topilmadi</h3>
             <p className="text-muted-foreground mb-4">
-              {searchQuery ? "Qidiruv natijasi topilmadi" : "Hozircha testlar yo'q"}
+              {search ? "Qidiruv natijasi bo'sh" : "Hali imtihon yaratilmagan"}
             </p>
-            {!searchQuery && (
+            {!search && (
               <Button onClick={() => router.push("/admin/tests/create")}>
-                <Plus className="w-4 h-4 mr-2" />
-                Birinchi testni yaratish
+                <Plus className="w-4 h-4 mr-2" />Yangi imtihon
               </Button>
             )}
           </Card>
         ) : (
-          filtered.map((test) => (
-            <Card key={test.id} className="p-6 hover:shadow-md transition-all">
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                <div className="flex-1 space-y-2">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h3 className="text-xl font-semibold">{test.name}</h3>
-                    <Badge variant={test.status === "published" ? "default" : "secondary"}>
-                      {test.status === "published" ? "Nashr etilgan" : "Qoralama"}
-                    </Badge>
+          filtered.map((exam) => (
+            <Card key={exam.id} className="p-5 hover:shadow-md transition-shadow">
+              <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+                <div className="flex-1 space-y-2 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-lg font-semibold">{exam.title}</h3>
+                    {exam.is_published ? (
+                      <Badge className="bg-green-500/10 text-green-600 border border-green-200">
+                        <Globe className="w-3 h-3 mr-1" />Nashr etilgan
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary">
+                        <GlobeLock className="w-3 h-3 mr-1" />Qoralama
+                      </Badge>
+                    )}
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    <span className="font-medium">Fan:</span> {test.subject}
+                    <span className="font-medium">Fan:</span> {exam.subject_name}
                   </p>
-                  <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <FileText className="w-4 h-4" />
-                      <span>{test.questionCount} ta savol</span>
-                    </div>
-                    {test.timeLimit && (
-                      <div className="flex items-center gap-1">
-                        <Clock className="w-4 h-4" />
-                        <span>{test.timeLimit} daqiqa</span>
-                      </div>
+                  {exam.description && (
+                    <p className="text-sm text-muted-foreground">{exam.description}</p>
+                  )}
+                  <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <FileText className="w-3.5 h-3.5" />{exam.questions_count ?? 0} savol
+                    </span>
+                    {exam.time_limit > 0 && (
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5" />{exam.time_limit} daqiqa
+                      </span>
                     )}
-                    <div className="flex items-center gap-1">
-                      <Users className="w-4 h-4" />
-                      <span>{test.completedCount} ta ishtirokchi</span>
-                    </div>
-                    {test.averageScore !== undefined && (
-                      <div className="flex items-center gap-1">
-                        <BarChart className="w-4 h-4" />
-                        <span>O&apos;rtacha: {test.averageScore}%</span>
-                      </div>
-                    )}
+                    <span className="flex items-center gap-1">
+                      <Users className="w-3.5 h-3.5" />{exam.participants_count ?? 0} ishtirokchi
+                    </span>
+                    <span>{fmtDate(exam.date)}</span>
                   </div>
                 </div>
-
-                <div className="flex flex-wrap lg:flex-col items-start gap-2 shrink-0">
-                  <div className="bg-primary/10 px-4 py-2 rounded-lg mb-1 w-full text-center">
-                    <p className="text-xs text-muted-foreground">Test kodi</p>
-                    <p className="text-lg font-bold text-primary">{test.testCode}</p>
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  <div className="bg-primary/10 border border-primary/20 px-4 py-2 rounded-lg text-center">
+                    <p className="text-xs text-muted-foreground">Kod</p>
+                    <p className="text-xl font-bold tracking-wider text-primary">{exam.code}</p>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => router.push(`/admin/tests/create?edit=${test.id}`)} className="flex-1 lg:w-full">
-                    <Edit className="w-4 h-4 mr-2" />Tahrirlash
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => handleDuplicate(test)} className="flex-1 lg:w-full">
-                    <Copy className="w-4 h-4 mr-2" />Nusxa
-                  </Button>
-                  <Button size="sm" variant="destructive" onClick={() => { setTestToDelete(test.id); setIsDeleteDialogOpen(true); }} className="flex-1 lg:w-full">
-                    <Trash2 className="w-4 h-4 mr-2" />O&apos;chirish
-                  </Button>
+                  <div className="flex flex-wrap gap-2 justify-end">
+                    <Button
+                      size="sm"
+                      variant={exam.is_published ? "outline" : "default"}
+                      onClick={() => handlePublish(exam)}
+                      className="text-xs"
+                    >
+                      {exam.is_published
+                        ? <><GlobeLock className="w-3.5 h-3.5 mr-1" />Yashirish</>
+                        : <><Globe className="w-3.5 h-3.5 mr-1" />Nashr</>}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => handleCopy(exam.id)} className="text-xs">
+                      <Copy className="w-3.5 h-3.5 mr-1" />Nusxa
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => router.push(`/admin/tests/create?edit=${exam.id}`)}
+                      className="text-xs"
+                    >
+                      <Pencil className="w-3.5 h-3.5 mr-1" />Tahrir
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => setDeleteId(exam.id)}
+                      className="text-xs"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 mr-1" />O&apos;chirish
+                    </Button>
+                  </div>
                 </div>
               </div>
             </Card>
@@ -218,14 +206,16 @@ export default function AdminTestsPage() {
         )}
       </div>
 
-      {/* Delete Dialog */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      {/* Delete confirm */}
+      <Dialog open={deleteId != null} onOpenChange={() => setDeleteId(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Testni o&apos;chirish</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Imtihonni o&apos;chirish</DialogTitle>
+          </DialogHeader>
           <div className="space-y-4">
-            <p className="text-muted-foreground">Rostdan ham bu testni o&apos;chirmoqchimisiz? Bu amalni bekor qilib bo&apos;lmaydi.</p>
+            <p className="text-muted-foreground">Rostdan ham o&apos;chirmoqchimisiz? Bu amalni bekor qilib bo&apos;lmaydi.</p>
             <div className="flex gap-3">
-              <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} className="flex-1">Bekor qilish</Button>
+              <Button variant="outline" onClick={() => setDeleteId(null)} className="flex-1">Bekor qilish</Button>
               <Button variant="destructive" onClick={handleDelete} className="flex-1">O&apos;chirish</Button>
             </div>
           </div>
