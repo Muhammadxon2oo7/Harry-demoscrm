@@ -132,7 +132,7 @@ export default function StaffRatingPage() {
   };
 
   return (
-    <div>
+    <div className="space-y-6">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-foreground">Reyting</h1>
         <p className="text-muted-foreground mt-2">Guruhlar va o&apos;quvchilar reytingi</p>

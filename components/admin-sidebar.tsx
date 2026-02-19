@@ -11,7 +11,7 @@ import {
   Trophy,
   LogOut,
   Menu,
-  User,
+  UserCircle2,
   FileText,
 } from "lucide-react";
 import { useState } from "react";
@@ -95,7 +95,19 @@ export function AdminSidebar() {
         </nav>
 
         {/* Logout Button */}
-        <div className="p-4 border-t border-border">
+        <div className="p-4 border-t border-border space-y-2">
+          <Link
+            href="/admin/profile"
+            onClick={() => setIsOpen(false)}
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
+              pathname === "/admin/profile"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-foreground hover:bg-muted"
+            }`}
+          >
+            <UserCircle2 className="w-5 h-5" />
+            <span className="font-medium">Profil</span>
+          </Link>
           <Button
             onClick={() => {
               logout();

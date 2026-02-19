@@ -19,25 +19,33 @@ const MOCK_BASE_URL =
 
 // ─── Token Helpers ─────────────────────────────────────────────────────────────
 
+import { getCookie, setCookie, deleteCookie } from "./cookies";
+
+/** Cookie names – keep in sync with app/api/auth/login/route.ts and middleware.ts */
+const COOKIE_ACCESS = "hp_access";
+const COOKIE_REFRESH = "hp_refresh";
+const COOKIE_USER = "hp_user";
+
 export const getAccessToken = (): string | null => {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem("hp_access_token");
+  return getCookie(COOKIE_ACCESS);
 };
 
 export const getRefreshToken = (): string | null => {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem("hp_refresh_token");
+  return getCookie(COOKIE_REFRESH);
 };
 
+/** Only used as a fallback after token refresh – login sets cookies server-side. */
 export const setTokens = (access: string, refresh: string): void => {
-  localStorage.setItem("hp_access_token", access);
-  localStorage.setItem("hp_refresh_token", refresh);
+  setCookie(COOKIE_ACCESS, access, 1);
+  setCookie(COOKIE_REFRESH, refresh, 3);
 };
 
 export const clearTokens = (): void => {
-  localStorage.removeItem("hp_access_token");
-  localStorage.removeItem("hp_refresh_token");
-  localStorage.removeItem("hp_user");
+  deleteCookie(COOKIE_ACCESS);
+  deleteCookie(COOKIE_REFRESH);
+  deleteCookie(COOKIE_USER);
 };
 
 // ─── Request Helper ────────────────────────────────────────────────────────────

@@ -13,7 +13,7 @@ export default function StaffLayout({
     <div className="flex h-screen bg-background">
       <AuthProvider>
         <StaffSidebar />
-        <main className="flex-1 overflow-auto">{children}</main>
+        <main className="flex-1 overflow-auto p-6 md:p-8">{children}</main>
       </AuthProvider>
     </div>
   );

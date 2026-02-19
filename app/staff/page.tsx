@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
+import { fmtDate } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { Users, Calendar, Clock, BookOpen, TrendingUp } from "lucide-react";
 import { groupsApi, type Group } from "@/lib/api";
@@ -50,7 +51,7 @@ export default function StaffDashboard() {
   const totalStudents = myGroups.reduce((sum, g) => sum + (g.students_count || 0), 0);
 
   return (
-    <div className="p-4 md:p-8 w-full space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <header className="space-y-1">
         <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2 animate-in fade-in slide-in-from-bottom duration-300">
@@ -58,7 +59,7 @@ export default function StaffDashboard() {
           Xush kelibsiz, {user?.full_name || user?.username}!
         </h1>
         <p className="text-sm md:text-base text-muted-foreground">
-          Bugungi sana: {today.toLocaleDateString("uz-UZ")} | {currentDay} | {currentTime}
+          Bugungi sana: {fmtDate(today)} | {currentDay} | {currentTime}
         </p>
       </header>
 

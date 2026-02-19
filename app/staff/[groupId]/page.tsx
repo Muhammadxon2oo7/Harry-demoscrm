@@ -124,7 +124,7 @@ export default function StaffGroupDetailPage() {
 
   if (loading) {
     return (
-      <div className="p-4 md:p-8 w-full space-y-6">
+      <div className="space-y-6">
         <div className="h-10 w-64 animate-pulse bg-muted/30 rounded" />
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[...Array(4)].map((_, i) => <div key={i} className="h-20 animate-pulse bg-muted/30 rounded-lg" />)}
@@ -147,7 +147,7 @@ export default function StaffGroupDetailPage() {
   const dayIcons = (group.days || "").split(",").map((d) => d.trim()).filter(Boolean);
 
   return (
-    <div className="p-4 md:p-8 w-full space-y-6">
+    <div className="space-y-6">
       {/* Header with Back Button */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">

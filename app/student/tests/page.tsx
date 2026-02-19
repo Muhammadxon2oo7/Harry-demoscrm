@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { fmtDate } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -58,7 +59,7 @@ export default function StudentTestsPage() {
       : 0;
 
   return (
-    <div>
+    <div className="space-y-6">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Imtihonlar</h1>
@@ -142,7 +143,7 @@ export default function StudentTestsPage() {
                 typeof session.user === "object" && session.user?.group
                   ? session.user.group.name
                   : "";
-              const date = new Date(session.started_at).toLocaleDateString("uz-UZ");
+              const date = fmtDate(session.started_at);
               return (
                 <div
                   key={session.id}

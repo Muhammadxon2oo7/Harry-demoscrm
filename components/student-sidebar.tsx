@@ -9,6 +9,7 @@ import {
   ClipboardList,
   FileCheck,
   DollarSign,
+  CalendarCheck,
   LogOut,
   Menu,
 } from "lucide-react";
@@ -24,6 +25,7 @@ export function StudentSidebar() {
   const menuItems = [
     { href: "/student", label: "Bosh Sahifa", icon: Home },
     { href: "/student/rating", label: "Reyting", icon: Trophy },
+    { href: "/student/attendance", label: "Davomat", icon: CalendarCheck },
     { href: "/student/homework", label: "Vazifalar", icon: ClipboardList },
     { href: "/student/tests", label: "Testlar", icon: FileCheck },
     { href: "/student/payments", label: "To'lovlar", icon: DollarSign },

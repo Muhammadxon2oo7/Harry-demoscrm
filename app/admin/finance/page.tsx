@@ -28,7 +28,7 @@ import {
   ArrowUpCircle,
   ArrowDownCircle,
 } from "lucide-react";
-import { format } from "date-fns";
+import { fmtDateTime } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -293,7 +293,7 @@ export default function AdminFinancePage() {
   const profit = totalIncome - totalExpense;
 
   return (
-    <div className="p-4 md:p-8 w-full space-y-6">
+    <div className="space-y-6">
       {/* Message */}
       {message && (
         <div
@@ -476,7 +476,7 @@ export default function AdminFinancePage() {
                   )}
                   <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2">
                     <Clock className="w-3 h-3" />
-                    {format(new Date(tx.created_at), "dd MMM • HH:mm")}
+                    {fmtDateTime(tx.created_at)}
                   </div>
                   <button
                     onClick={() => setDeleteModal({ open: true, id: tx.id, type: tx.deleteType })}

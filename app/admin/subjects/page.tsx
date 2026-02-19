@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
+import { fmtDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -234,7 +235,7 @@ export default function AdminSubjectsPage() {
   };
 
   return (
-    <div className="p-4 md:p-8 w-full space-y-6">
+    <div className="space-y-6">
       {/* Message */}
       {message && (
         <div
@@ -316,7 +317,7 @@ export default function AdminSubjectsPage() {
                   </div>
                   <h3 className="font-bold text-lg mb-2">{subject.name}</h3>
                   <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
-                    {subject.created_at ? new Date(subject.created_at).toLocaleDateString("uz-UZ") : "—"}
+                    {subject.created_at ? fmtDate(subject.created_at) : "—"}
                   </p>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Users className="w-4 h-4" />

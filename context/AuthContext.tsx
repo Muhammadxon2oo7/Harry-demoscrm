@@ -2,7 +2,8 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { authApi, setTokens, clearTokens, type AuthUser, type UserRole } from "@/lib/api";
+import { clearTokens, type AuthUser, type UserRole } from "@/lib/api";
+import { getCookie } from "@/lib/cookies";
 
 /** Map backend role to frontend route prefix */
 const roleToPath: Record<UserRole, string> = {
@@ -27,28 +28,42 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
+  // Initialise from the hp_user cookie (set by the server login route)
   useEffect(() => {
-    const storedUser = localStorage.getItem("hp_user");
-    if (storedUser) {
+    const cookieUser = getCookie("hp_user");
+    if (cookieUser) {
       try {
-        setUser(JSON.parse(storedUser) as AuthUser);
+        setUser(JSON.parse(cookieUser) as AuthUser);
       } catch {
-        localStorage.removeItem("hp_user");
+        // corrupted cookie — ignore
       }
     }
     setIsLoading(false);
   }, []);
 
   const login = async (username: string, password: string) => {
-    const data = await authApi.login(username, password);
-    setTokens(data.tokens.access, data.tokens.refresh);
-    localStorage.setItem("hp_user", JSON.stringify(data.user));
-    setUser(data.user);
-    router.push(roleToPath[data.user.role] ?? "/login");
+    // POST to our Next.js server route which sets httpOnly cookies
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      // Propagate backend error so login page can display it
+      throw data;
+    }
+
+    setUser(data.user as AuthUser);
+    router.push(roleToPath[(data.user as AuthUser).role] ?? "/login");
   };
 
-  const logout = () => {
-    clearTokens();
+  const logout = async () => {
+    // Call DELETE on the server route to clear the httpOnly cookie
+    await fetch("/api/auth/login", { method: "DELETE" }).catch(() => {});
+    clearTokens(); // clears any client-readable cookies too
     setUser(null);
     router.push("/login");
   };

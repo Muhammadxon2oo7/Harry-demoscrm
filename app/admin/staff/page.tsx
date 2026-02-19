@@ -127,7 +127,7 @@ export default function AdminStaffPage() {
   });
 
   return (
-    <div className="p-4 md:p-8 w-full space-y-6">
+    <div className="space-y-6">
       {/* Message */}
       {message && (
         <div

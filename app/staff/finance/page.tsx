@@ -24,7 +24,7 @@ import {
   TrendingUp,
   DollarSign,
 } from "lucide-react";
-import { format } from "date-fns";
+import { fmtDateTime } from "@/lib/utils";
 import {
   groupsApi,
   studentsApi,
@@ -181,7 +181,7 @@ export default function StaffFinancePage() {
   };
 
   return (
-    <div className="p-4 md:p-8 w-full space-y-6">
+    <div className="space-y-6">
       {/* Message */}
       {message && (
         <div
@@ -285,7 +285,7 @@ export default function StaffFinancePage() {
                     <span>•</span>
                     <span className="flex items-center gap-1">
                       <Clock className="w-3 h-3" />
-                      {format(new Date(transaction.created_at), "dd MMM • HH:mm")}
+                      {fmtDateTime(transaction.created_at)}
                     </span>
                   </div>
                 </div>

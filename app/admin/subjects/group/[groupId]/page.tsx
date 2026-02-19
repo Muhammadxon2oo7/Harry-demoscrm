@@ -126,7 +126,7 @@ export default function GroupDetailPage() {
   const days = group.days ? group.days.split(",") : [];
 
   return (
-    <div className="p-4 md:p-8 w-full space-y-6">
+    <div className="space-y-6">
       {/* Header with back button */}
       <div className="flex items-center gap-4">
         <Button

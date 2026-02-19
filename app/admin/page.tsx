@@ -61,7 +61,7 @@ export default function AdminDashboard() {
   const profit = dashboard?.finance.profit ?? 0;
 
   return (
-    <div className="p-4 md:p-8 w-full space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <header className="space-y-1">
         <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2 animate-in fade-in slide-in-from-bottom duration-300">

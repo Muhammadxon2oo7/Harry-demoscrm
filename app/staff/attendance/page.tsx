@@ -172,7 +172,7 @@ export default function StaffAttendancePage() {
   const selectedGroupData = groups.find((g) => String(g.id) === selectedGroup);
 
   return (
-    <div>
+    <div className="space-y-6">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-foreground">Davomat va Baholar</h1>
         <p className="text-muted-foreground mt-2">

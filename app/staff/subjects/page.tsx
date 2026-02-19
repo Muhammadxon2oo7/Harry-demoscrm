@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
+import { fmtDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Users, BookOpen, Clock, Calendar } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -42,7 +43,7 @@ export default function StaffSubjectsPage() {
   useEffect(() => { loadData(); }, [loadData]);
 
   return (
-    <div className="p-4 md:p-8 w-full space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
@@ -86,7 +87,7 @@ export default function StaffSubjectsPage() {
                     <h3 className="font-bold text-lg mb-1">{subject.name}</h3>
                     <p className="text-xs text-muted-foreground mb-4">
                       {subject.created_at
-                        ? new Date(subject.created_at).toLocaleDateString("uz-UZ")
+                        ? fmtDate(subject.created_at)
                         : "—"}
                     </p>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
