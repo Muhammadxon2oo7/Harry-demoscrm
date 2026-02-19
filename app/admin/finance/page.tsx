@@ -225,6 +225,8 @@ export default function AdminFinancePage() {
     title: string;
     groupName?: string;
     monthsPaid?: number;
+    paidMonths?: { month_name: string; year: number }[];
+    receivedBy?: string;
     amount: number;
     description: string;
     created_at: string;
@@ -238,13 +240,19 @@ export default function AdminFinancePage() {
         (typeof p.student === "object" ? `${p.student.first_name} ${p.student.last_name}` : "O'quvchi");
       const groupName =
         p.group_name ||
-        (typeof p.group === "object" ? p.group.name : undefined);
+        (typeof p.group === "object" ? p.group.name : groups.find((g) => g.id === (typeof p.group === "number" ? p.group : p.group?.id))?.name);
+      const rb = p.received_by;
+      const receivedBy = rb
+        ? (rb.first_name || rb.last_name ? `${rb.first_name} ${rb.last_name}`.trim() : rb.username)
+        : undefined;
       return {
         id: p.id,
         type: "income",
         title: studentName,
         groupName,
         monthsPaid: p.months_paid,
+        paidMonths: p.months?.map((m) => ({ month_name: m.month_name, year: m.year })),
+        receivedBy,
         amount: parseFloat(String(p.amount)),
         description: `${p.months_paid || 1} oylik to'lov`,
         created_at: p.created_at,
@@ -263,7 +271,7 @@ export default function AdminFinancePage() {
     return [...pays, ...exps].sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
-  }, [payments, expenses]);
+  }, [payments, expenses, groups]);
 
   const filteredTransactions = useMemo(() => {
     return allTransactions.filter((tx) => {
@@ -440,7 +448,7 @@ export default function AdminFinancePage() {
                       {tx.type === "income" ? "Daromad" : "Xarajat"}
                     </Badge>
                     {tx.groupName && (
-                      <Badge variant="secondary" className="text-xs">{tx.groupName}</Badge>
+                      <Badge variant="secondary" className="text-xs"><Users className="w-3 h-3 mr-1" />{tx.groupName}</Badge>
                     )}
                     {tx.monthsPaid && (
                       <Badge variant="outline" className="text-xs">{tx.monthsPaid} oy</Badge>
@@ -449,7 +457,23 @@ export default function AdminFinancePage() {
                   <p className={`font-medium text-sm md:text-base mt-1 ${tx.type === "income" ? "text-green-600" : "text-red-600"}`}>
                     {tx.type === "income" ? "+" : "-"} {tx.amount.toLocaleString()} so'm
                   </p>
-                  <p className="text-xs md:text-sm text-muted-foreground mt-1">{tx.description}</p>
+                  {tx.paidMonths && tx.paidMonths.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {tx.paidMonths.map((m, i) => (
+                        <Badge key={i} variant="outline" className="text-xs bg-green-500/10 border-green-500/20 text-green-700">
+                          {m.month_name} {m.year}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                  {tx.receivedBy && (
+                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                      <Users className="w-3 h-3" /> Qabul qildi: <span className="font-medium text-foreground">{tx.receivedBy}</span>
+                    </p>
+                  )}
+                  {tx.type === "expense" && (
+                    <p className="text-xs md:text-sm text-muted-foreground mt-1">{tx.description}</p>
+                  )}
                   <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2">
                     <Clock className="w-3 h-3" />
                     {format(new Date(tx.created_at), "dd MMM • HH:mm")}
