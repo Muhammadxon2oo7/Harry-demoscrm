@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,7 @@ interface Question {
   correctAnswer?: string;
 }
 
-export default function StaffCreateTestPage() {
+function StaffCreateTestPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get("edit");
@@ -341,5 +341,13 @@ export default function StaffCreateTestPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function StaffCreateTestPage() {
+  return (
+    <Suspense fallback={null}>
+      <StaffCreateTestPageContent />
+    </Suspense>
   );
 }
