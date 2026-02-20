@@ -263,6 +263,7 @@ export interface ExamRecord {
   is_published: boolean;
   is_active: boolean;
   date: string;
+  created_by?: number;
   questions_count?: number;
   participants_count?: number;
   questions?: ExamQuestion[];
@@ -275,6 +276,17 @@ export interface ExamSubmitAnswer {
   written_answer?: string;
 }
 
+export interface ExamAnswer {
+  id: number;
+  exam_result: number;
+  question: number;
+  question_text: string;
+  option: number | null;
+  option_text: string | null;
+  written_answer: string | null;
+  is_correct: boolean;
+}
+
 export interface ExamResultRecord {
   id: number;
   exam: number;
@@ -285,7 +297,7 @@ export interface ExamResultRecord {
   total_questions: number;
   is_checked: boolean;
   checked_by: number | null;
-  answers?: unknown[];
+  answers?: ExamAnswer[];
   created_at: string;
 }
 
@@ -303,6 +315,7 @@ export interface MessageRecord {
   id: number;
   text: string;
   recipients: number[];
+  sent_by?: number;
   created_at: string;
   logs: MessageLog[];
 }
@@ -566,6 +579,7 @@ export interface ExamCreateInput {
   description?: string;
   time_limit?: number;
   is_published?: boolean;
+  is_active?: boolean;
   date?: string;
   questions?: ExamQuestionInput[];
 }
@@ -631,6 +645,10 @@ export const messagesApi = {
   get: (id: number) => api.get<MessageRecord>(`${BASE_URL}/messages/${id}/`),
   send: (data: MessageCreateInput) =>
     api.post<MessageRecord>(`${BASE_URL}/messages/`, data),
+  update: (id: number, data: { text: string }) =>
+    api.put<MessageRecord>(`${BASE_URL}/messages/${id}/`, data),
+  patch: (id: number, data: Partial<{ text: string }>) =>
+    api.patch<MessageRecord>(`${BASE_URL}/messages/${id}/`, data),
   delete: (id: number) => api.delete<void>(`${BASE_URL}/messages/${id}/`),
 };
 

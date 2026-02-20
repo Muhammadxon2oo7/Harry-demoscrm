@@ -1,1471 +1,255 @@
-# HPA (Harry-Potter Academy) — Frontend API Documentation
+# HPA (Harry Potter Academy) — Backend API Dokumentatsiyasi
 
-> **Base URL:** `https://www.harry-potter.uz`  
-> **API Prefix:** `/api/v1/`  
-> **Swagger UI:** `/swdoc/` | **ReDoc:** `/redoc/`  
-> **Authentication:** JWT (Bearer Token)  
-> **Timezone:** Asia/Tashkent  
+> **Base URL:** `http://<server>/api/v1/`  
+> **Auth:** JWT Bearer Token (barcha endpointlar `Authorization: Bearer <access_token>` talab qiladi, login bundan mustasno)  
+> **Swagger UI:** `/swdoc/`  
+> **ReDoc:** `/redoc/`
 
 ---
 
 ## Mundarija
 
-1. [Autentifikatsiya](#1-autentifikatsiya)
-2. [Rollar va Ruxsatlar](#2-rollar-va-ruxsatlar)
-3. [Fanlar (Subjects)](#3-fanlar-subjects)
-4. [Guruhlar (Groups)](#4-guruhlar-groups)
-5. [Adminlar (Owners)](#5-adminlar-owners)
-6. [Xodimlar (Workers)](#6-xodimlar-workers)
-7. [O'quvchilar (Students)](#7-oquvchilar-students)
-8. [Davomat (Attendance)](#8-davomat-attendance)
-9. [Ballar (Scores)](#9-ballar-scores)
-10. [Vazifalar (Homework)](#10-vazifalar-homework)
-11. [To'lovlar (Payments)](#11-tolovlar-payments)
-12. [Chiqimlar (Expenses)](#12-chiqimlar-expenses)
-13. [Imtihonlar (Exams)](#13-imtihonlar-exams)
-14. [Imtihon Natijalari (Exam Results)](#14-imtihon-natijalari-exam-results)
-15. [Ish Hisobi (Work Logs)](#15-ish-hisobi-work-logs)
-16. [Dashboard / Statistika](#16-dashboard--statistika)
-17. [Telegram Xabarlar (Messages)](#17-telegram-xabarlar-messages)
-18. [Mock Test (IELTS)](#18-mock-test-ielts)
-    - [Testlar](#181-testlar)
-    - [Test Sessiyasi](#182-test-sessiyasi)
-    - [Javoblar](#183-javoblar)
-    - [Natijalar (Scores)](#184-natijalar-scores)
-19. [Umumiy Xato Javoblari](#19-umumiy-xato-javoblari)
+1. [Autentifikatsiya (Login)](#1-autentifikatsiya-login)
+2. [Exams — Imtihonlar](#2-exams--imtihonlar)
+3. [Exam Results — Imtihon Natijalari](#3-exam-results--imtihon-natijalari)
+4. [Messages — Telegram Xabarlar](#4-messages--telegram-xabarlar)
+5. [Work Logs — Ish Hisobi](#5-work-logs--ish-hisobi)
+6. [Model Sxemalari](#6-model-sxemalari)
 
 ---
 
-## 1. Autentifikatsiya
-
-### Token olish (Login)
-
-Barcha himoyalangan endpointlar uchun **Authorization** headerida Bearer token yuborish kerak:
-
-```
-Authorization: Bearer <access_token>
-```
-
-**Access Token** 1 kun, **Refresh Token** 3 kun amal qiladi.
-
----
+## 1. Autentifikatsiya (Login)
 
 ### `POST /api/v1/login/`
 
-Foydalanuvchi hisobiga kirish.
+Tizimga kirish — access va refresh token qaytaradi.
 
-**Permission:** Hamma (AllowAny)
+**Permission:** AllowAny (token shart emas)
 
-#### Request Body
-
+**Request Body:**
 ```json
 {
-  "username": "admin123",
-  "password": "secret123"
+  "username": "string",
+  "password": "string"
 }
 ```
 
-| Field      | Type   | Required | Description         |
-|------------|--------|----------|---------------------|
-| `username` | string | ✅       | Foydalanuvchi nomi  |
-| `password` | string | ✅       | Parol (min 8 belgi) |
-
-#### Response `200 OK`
-
+**Response `200 OK`:**
 ```json
 {
   "tokens": {
-    "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    "access": "<JWT access token>",
+    "refresh": "<JWT refresh token>"
   },
   "user": {
     "id": 1,
-    "username": "admin123",
+    "username": "admin",
     "role": "owner",
-    "full_name": "John Doe"
+    "full_name": "Ali Valiyev"
   }
 }
 ```
 
-> **Muhim:** JWT tokenning `role` field-i tokenning o'zida ham kodlanganki, frontendda `decode` qilib ishlatish mumkin.
-
-#### Response `401 Unauthorized`
-
+**Response `401 Unauthorized`:**
 ```json
 {
   "detail": "Invalid credentials"
 }
 ```
 
----
-
-## 2. Rollar va Ruxsatlar
-
-| Rol        | Qiymat     | Huquqlar                                           |
-|------------|------------|----------------------------------------------------|
-| Owner/Admin | `owner`   | Hamma amallarni bajarish (CRUD)                    |
-| Xodim      | `employee` | Ko'rish + davomat/ball/vazifa yaratish             |
-| O'quvchi   | `student`  | Faqat o'z ma'lumotlarini ko'rish                   |
-
-### Permission Qoidalari
-
-- `IsOwnerPermission` — faqat `role == "owner"`
-- `IsWorkerPermission` — o'qish (GET) uchun hamma, yozish uchun `owner` yoki `employee`
-- `IsAuthenticated` — login bo'lgan barcha foydalanuvchilar
+**Rollar:**
+| Role | Tavsif |
+|------|--------|
+| `owner` | Admin — barcha amallarni bajarishi mumkin |
+| `employee` | Xodim — o'qituvchi |
+| `student` | O'quvchi |
 
 ---
 
-## 3. Fanlar (Subjects)
+---
 
-Base URL: `/api/v1/subjects/`
+## 2. Exams — Imtihonlar
 
-### `GET /api/v1/subjects/`
+**Base path:** `/api/v1/exams/`  
+**Permission:** `IsAuthenticated`
 
-Barcha fanlar ro'yxati.
+---
 
-**Permission:** IsAuthenticated
+### 2.1. Barcha Imtihonlar Ro'yxati
 
-#### Response `200 OK`
+#### `GET /api/v1/exams/`
 
+**Response `200 OK`:**
 ```json
 [
   {
     "id": 1,
-    "name": "IELTS",
-    "created_at": "2025-01-15T10:30:00+05:00"
-  },
-  {
-    "id": 2,
-    "name": "SAT",
-    "created_at": "2025-01-16T08:00:00+05:00"
-  }
-]
-```
-
----
-
-### `POST /api/v1/subjects/`
-
-Yangi fan yaratish.
-
-**Permission:** IsAuthenticated
-
-#### Request Body
-
-```json
-{
-  "name": "IELTS"
-}
-```
-
-#### Response `201 Created`
-
-```json
-{
-  "id": 1,
-  "name": "IELTS",
-  "created_at": "2025-01-15T10:30:00+05:00"
-}
-```
-
----
-
-### `GET /api/v1/subjects/{id}/`
-
-Bitta fanni ko'rish.
-
-#### Response `200 OK`
-
-```json
-{
-  "id": 1,
-  "name": "IELTS",
-  "created_at": "2025-01-15T10:30:00+05:00"
-}
-```
-
----
-
-### `PUT/PATCH /api/v1/subjects/{id}/`
-
-Fanni yangilash.
-
-#### Request Body
-
-```json
-{
-  "name": "IELTS (Updated)"
-}
-```
-
----
-
-### `DELETE /api/v1/subjects/{id}/`
-
-Fanni o'chirish.
-
-**Response:** `204 No Content`
-
----
-
-## 4. Guruhlar (Groups)
-
-Base URL: `/api/v1/groups/`
-
-### `GET /api/v1/groups/`
-
-Barcha guruhlar ro'yxati.
-
-**Permission:** IsAuthenticated
-
-#### Response `200 OK`
-
-```json
-[
-  {
-    "id": 1,
-    "name": "IELTS-A1",
-    "description": "Asosiy guruh",
-    "subject": 1,
-    "subject_name": "IELTS",
-    "is_active": true,
-    "days": "Mon,Wed,Fri",
-    "start_time": "09:00:00",
-    "end_time": "11:00:00",
-    "created_at": "2025-01-15T10:30:00+05:00",
-    "group_total_score": 1250,
-    "students_count": 12,
-    "homework_count": 5
-  }
-]
-```
-
----
-
-### `POST /api/v1/groups/`
-
-Yangi guruh yaratish.
-
-**Permission:** IsAuthenticated
-
-#### Request Body
-
-```json
-{
-  "name": "IELTS-A1",
-  "description": "Asosiy guruh",
-  "subject": 1,
-  "is_active": true,
-  "days": "Mon,Wed,Fri",
-  "start_time": "09:00:00",
-  "end_time": "11:00:00"
-}
-```
-
-| Field        | Type    | Required | Description                              |
-|--------------|---------|----------|------------------------------------------|
-| `name`       | string  | ✅       | Guruh nomi (max 30 belgi)                |
-| `subject`    | integer | ✅       | Fan ID                                   |
-| `description`| string  | ❌       | Tavsif                                   |
-| `is_active`  | boolean | ❌       | Default: `true`                          |
-| `days`       | string  | ❌       | `"Mon,Wed,Fri"` formatida                |
-| `start_time` | time    | ❌       | `"HH:MM:SS"` formatida                  |
-| `end_time`   | time    | ❌       | `"HH:MM:SS"` formatida                  |
-
-#### Response `201 Created`
-
-```json
-{
-  "id": 1,
-  "name": "IELTS-A1",
-  "subject": 1,
-  "subject_name": "IELTS",
-  "is_active": true,
-  "days": "Mon,Wed,Fri",
-  "start_time": "09:00:00",
-  "end_time": "11:00:00",
-  "created_at": "2025-01-15T10:30:00+05:00",
-  "group_total_score": 0,
-  "students_count": 0,
-  "homework_count": 0
-}
-```
-
----
-
-### `GET /api/v1/groups/{id}/`
-
-Bitta guruhni ko'rish.
-
----
-
-### `PUT/PATCH /api/v1/groups/{id}/`
-
-Guruhni yangilash.
-
----
-
-### `DELETE /api/v1/groups/{id}/`
-
-Guruhni o'chirish. **Response:** `204 No Content`
-
----
-
-### `GET /api/v1/groups/rating/`
-
-Barcha faol guruhlarni umumiy ball bo'yicha reytingda ko'rish.
-
-**Permission:** IsAuthenticated
-
-#### Response `200 OK`
-
-```json
-[
-  {
-    "id": 1,
-    "name": "IELTS-A1",
-    "subject_name": "IELTS",
-    "total_score": 3500,
-    "rank": 1,
-    "students_count": 15
-  },
-  {
-    "id": 2,
-    "name": "SAT-B2",
-    "subject_name": "SAT",
-    "total_score": 2800,
-    "rank": 2,
-    "students_count": 10
-  }
-]
-```
-
----
-
-## 5. Adminlar (Owners)
-
-Base URL: `/api/v1/owners/`
-
-**Permission:** IsAuthenticated + IsOwnerPermission (faqat `owner` ro'li)
-
-### `GET /api/v1/owners/`
-
-Barcha adminlar ro'yxati.
-
-#### Response `200 OK`
-
-```json
-[
-  {
-    "id": 1,
-    "username": "superadmin",
-    "first_name": "John",
-    "last_name": "Doe",
-    "phone": "+998901234567",
-    "telegram_id": "123456789",
-    "role": "owner",
-    "created_at": "2025-01-01T00:00:00+05:00"
-  }
-]
-```
-
----
-
-### `POST /api/v1/owners/`
-
-Yangi admin yaratish.
-
-#### Request Body
-
-```json
-{
-  "username": "admin001",
-  "password": "secure1234",
-  "first_name": "Ali",
-  "last_name": "Valiyev",
-  "phone": "+998901234567",
-  "telegram_id": "987654321"
-}
-```
-
-| Field        | Type   | Required | Validation                         |
-|--------------|--------|----------|------------------------------------|
-| `username`   | string | ✅       | Min 6 belgi                        |
-| `password`   | string | ✅       | Min 8 belgi (write_only)           |
-| `first_name` | string | ❌       | —                                  |
-| `last_name`  | string | ❌       | —                                  |
-| `phone`      | string | ❌       | —                                  |
-| `telegram_id`| string | ❌       | —                                  |
-
-#### Response `201 Created`
-
-```json
-{
-  "id": 5,
-  "username": "admin001",
-  "first_name": "Ali",
-  "last_name": "Valiyev",
-  "phone": "+998901234567",
-  "telegram_id": "987654321",
-  "role": "owner",
-  "is_staff": true,
-  "is_superuser": true,
-  "created_at": "2025-02-19T12:00:00+05:00"
-}
-```
-
----
-
-### `GET /api/v1/owners/{id}/`
-
-Bitta adminni ko'rish.
-
----
-
-### `PUT/PATCH /api/v1/owners/{id}/`
-
-Adminni yangilash. Parol o'zgartirish uchun `password` maydoni kiritiladi.
-
----
-
-### `DELETE /api/v1/owners/{id}/`
-
-Adminni o'chirish. **Response:** `204 No Content`
-
----
-
-## 6. Xodimlar (Workers)
-
-Base URL: `/api/v1/workers/`
-
-**Permission:** IsAuthenticated + IsOwnerPermission
-
-### `GET /api/v1/workers/`
-
-Barcha xodimlar ro'yxati.
-
-#### Response `200 OK`
-
-```json
-[
-  {
-    "id": 3,
-    "username": "teacher01",
-    "first_name": "Bobur",
-    "last_name": "Toshmatov",
-    "phone": "+998991234567",
-    "telegram_id": null,
-    "role": "employee",
-    "is_staff": true,
-    "is_superuser": false,
-    "created_at": "2025-01-10T09:00:00+05:00"
-  }
-]
-```
-
----
-
-### `POST /api/v1/workers/`
-
-Yangi xodim yaratish.
-
-#### Request Body
-
-```json
-{
-  "username": "teacher01",
-  "password": "mypassword1",
-  "first_name": "Bobur",
-  "last_name": "Toshmatov",
-  "phone": "+998991234567"
-}
-```
-
-| Field        | Type   | Required | Validation               |
-|--------------|--------|----------|--------------------------|
-| `username`   | string | ✅       | Min 6 belgi              |
-| `password`   | string | ✅       | Min 8 belgi (write_only) |
-| `first_name` | string | ❌       | —                        |
-| `last_name`  | string | ❌       | —                        |
-| `phone`      | string | ❌       | —                        |
-| `telegram_id`| string | ❌       | —                        |
-
-#### Response `201 Created`
-
-```json
-{
-  "id": 3,
-  "username": "teacher01",
-  "first_name": "Bobur",
-  "last_name": "Toshmatov",
-  "phone": "+998991234567",
-  "role": "employee",
-  "is_staff": true,
-  "is_superuser": false,
-  "created_at": "..."
-}
-```
-
----
-
-### `GET /api/v1/workers/{id}/`
-
-Bitta xodimni ko'rish.
-
----
-
-### `PUT/PATCH /api/v1/workers/{id}/`
-
-Xodimni yangilash.
-
----
-
-### `DELETE /api/v1/workers/{id}/`
-
-Xodimni o'chirish. **Response:** `204 No Content`
-
----
-
-## 7. O'quvchilar (Students)
-
-Base URL: `/api/v1/students/`
-
-**Permission:** IsAuthenticated
-
-### `GET /api/v1/students/`
-
-Barcha o'quvchilar ro'yxati.
-
-**Query Params:**
-
-| Param      | Type    | Description                     |
-|------------|---------|---------------------------------|
-| `group_id` | integer | Guruh bo'yicha filter (optional) |
-
-#### Response `200 OK`
-
-```json
-[
-  {
-    "id": 10,
-    "username": "student001",
-    "first_name": "Jasur",
-    "last_name": "Qodirov",
-    "phone": "+998900000001",
-    "parent_phone": "+998900000002",
-    "telegram_id": null,
-    "role": "student",
-    "group": {
-      "id": 1,
-      "name": "IELTS-A1"
-    },
-    "all_score": 250,
-    "created_at": "2025-01-20T08:00:00+05:00"
-  }
-]
-```
-
----
-
-### `POST /api/v1/students/`
-
-Yangi o'quvchi yaratish.
-
-#### Request Body
-
-```json
-{
-  "username": "student001",
-  "password": "qwerty123",
-  "first_name": "Jasur",
-  "last_name": "Qodirov",
-  "phone": "+998900000001",
-  "parent_phone": "+998900000002",
-  "telegram_id": "111222333",
-  "group": 1
-}
-```
-
-| Field          | Type    | Required | Validation                                |
-|----------------|---------|----------|-------------------------------------------|
-| `username`     | string  | ✅       | Min 6 belgi                               |
-| `password`     | string  | ✅       | Min 8 belgi (write_only)                  |
-| `first_name`   | string  | ❌       | —                                         |
-| `last_name`    | string  | ❌       | —                                         |
-| `phone`        | string  | ❌       | —                                         |
-| `parent_phone` | string  | ❌       | —                                         |
-| `telegram_id`  | string  | ❌       | —                                         |
-| `group`        | integer | ❌       | Faqat `is_active=true` bo'lgan guruh ID   |
-
-#### Response `201 Created`
-
-```json
-{
-  "id": 10,
-  "username": "student001",
-  "first_name": "Jasur",
-  "last_name": "Qodirov",
-  "phone": "+998900000001",
-  "parent_phone": "+998900000002",
-  "telegram_id": "111222333",
-  "role": "student",
-  "group": {
-    "id": 1,
-    "name": "IELTS-A1"
-  },
-  "all_score": 0,
-  "created_at": "..."
-}
-```
-
----
-
-### `GET /api/v1/students/{id}/`
-
-Bitta o'quvchini ko'rish.
-
----
-
-### `PUT/PATCH /api/v1/students/{id}/`
-
-O'quvchini yangilash.
-
----
-
-### `DELETE /api/v1/students/{id}/`
-
-O'quvchini o'chirish. **Response:** `204 No Content`
-
----
-
-### `GET /api/v1/students/rating/?group_id={group_id}`
-
-Guruh ichidagi o'quvchilarni ball bo'yicha reyting tartibida ko'rish.
-
-**Permission:** IsAuthenticated
-
-**Query Params:**
-
-| Param      | Type    | Required | Description |
-|------------|---------|----------|-------------|
-| `group_id` | integer | ✅       | Guruh ID    |
-
-#### Response `200 OK`
-
-```json
-[
-  {
-    "id": 10,
-    "username": "student001",
-    "first_name": "Jasur",
-    "last_name": "Qodirov",
-    "total_score": 320,
-    "rank": 1,
-    "group_name": "IELTS-A1"
-  },
-  {
-    "id": 11,
-    "username": "student002",
-    "first_name": "Dilnoza",
-    "last_name": "Yusupova",
-    "total_score": 290,
-    "rank": 2,
-    "group_name": "IELTS-A1"
-  }
-]
-```
-
-#### Response `400 Bad Request` (group_id yo'q)
-
-```json
-{
-  "error": "group_id parametri kerak."
-}
-```
-
----
-
-## 8. Davomat (Attendance)
-
-Base URL: `/api/v1/attendance/`
-
-**Permission:** IsAuthenticated
-
-### `GET /api/v1/attendance/`
-
-Barcha davomat yozuvlari.
-
-#### Response `200 OK`
-
-```json
-[
-  {
-    "id": 1,
-    "student": {
-      "id": 10,
-      "first_name": "Jasur",
-      "last_name": "Qodirov",
-      "username": "student001"
-    },
-    "group": {
-      "id": 1,
-      "name": "IELTS-A1"
-    },
-    "status": "keldi",
-    "date": "2025-02-19",
-    "time": "09:05:00",
-    "created_at": "2025-02-19T09:05:00+05:00",
-    "updated_at": "2025-02-19T09:05:00+05:00"
-  }
-]
-```
-
----
-
-### `POST /api/v1/attendance/`
-
-Bitta davomat yozuvi yaratish.
-
-#### Request Body
-
-```json
-{
-  "student": 10,
-  "group": 1,
-  "status": "keldi"
-}
-```
-
-| Field     | Type    | Required | Choices                           |
-|-----------|---------|----------|-----------------------------------|
-| `student` | integer | ✅       | O'quvchi (student) ID             |
-| `group`   | integer | ✅       | Aktiv guruh ID                    |
-| `status`  | string  | ✅       | `keldi`, `kechikdi`, `kelmadi`    |
-
-> `marked_by` avtomatik ravishda so'rov yuborgan foydalanuvchiga o'rnatiladi.
-
-#### Response `201 Created`
-
-```json
-{
-  "id": 1,
-  "student": {
-    "id": 10,
-    "first_name": "Jasur",
-    "last_name": "Qodirov",
-    "username": "student001"
-  },
-  "group": {
-    "id": 1,
-    "name": "IELTS-A1"
-  },
-  "status": "keldi",
-  "date": "2025-02-19",
-  "time": "09:05:00",
-  "created_at": "2025-02-19T09:05:00+05:00",
-  "updated_at": "2025-02-19T09:05:00+05:00"
-}
-```
-
----
-
-### `POST /api/v1/attendance/bulk_create/`
-
-Guruhning barcha o'quvchilari uchun bir vaqtda davomat yaratish.
-
-> Agar bugungi davomat allaqachon mavjud bo'lsa — mavjud yozuvlar qaytariladi.  
-> `employee` roli uchun dars kuni va dars vaqtini tekshiradi.  
-> `owner` roli bu cheklovlardan ozod.
-
-#### Request Body
-
-```json
-{
-  "group_id": 1
-}
-```
-
-#### Response `200 OK` (allaqachon mavjud bo'lsa)
-
-```json
-[
-  {
-    "id": 5,
-    "student": {
-      "id": 10,
-      "first_name": "Jasur",
-      "last_name": "Qodirov",
-      "username": "student001"
-    },
-    "group": {"id": 1, "name": "IELTS-A1"},
-    "status": "kelmadi",
-    "date": "2025-02-19",
-    "time": "09:00:00"
-  }
-]
-```
-
-#### Response `400 Bad Request` (dars kuni emas)
-
-```json
-{
-  "error": "Bugun guruhning dars kuni emas. (Mon,Wed,Fri)"
-}
-```
-
-#### Response `400 Bad Request` (dars vaqti emas)
-
-```json
-{
-  "error": "Dars vaqti emas. (09:00:00-11:00:00)"
-}
-```
-
----
-
-### `GET /api/v1/attendance/{id}/`
-
-Bitta davomat yozuvini ko'rish.
-
----
-
-### `PUT/PATCH /api/v1/attendance/{id}/`
-
-Davomat statusini yangilash (masalan: `kelmadi` → `keldi`).
-
----
-
-### `DELETE /api/v1/attendance/{id}/`
-
-Davomat yozuvini o'chirish. **Response:** `204 No Content`
-
----
-
-## 9. Ballar (Scores)
-
-Base URL: `/api/v1/scores/`
-
-**Permission:** IsAuthenticated
-
-### `GET /api/v1/scores/`
-
-Barcha ball yozuvlari.
-
-#### Response `200 OK`
-
-```json
-[
-  {
-    "id": 1,
-    "student": {
-      "id": 10,
-      "first_name": "Jasur",
-      "last_name": "Qodirov",
-      "username": "student001"
-    },
-    "group": {
-      "id": 1,
-      "name": "IELTS-A1"
-    },
-    "score": 85,
-    "date": "2025-02-19",
-    "given_by": {
-      "id": 3,
-      "first_name": "Bobur",
-      "last_name": "Toshmatov"
-    },
-    "created_at": "2025-02-19T10:00:00+05:00"
-  }
-]
-```
-
----
-
-### `POST /api/v1/scores/`
-
-Yangi ball berish.
-
-#### Request Body
-
-```json
-{
-  "student": 10,
-  "group": 1,
-  "score": 85
-}
-```
-
-| Field     | Type    | Required | Validation              |
-|-----------|---------|----------|-------------------------|
-| `student` | integer | ✅       | `role=student` bo'lishi |
-| `group`   | integer | ✅       | Aktiv guruh ID          |
-| `score`   | integer | ✅       | 0 — 100 oralig'ida      |
-
-> `given_by` avtomatik ravishda so'rov yuborgan foydalanuvchiga o'rnatiladi.
-
-#### Response `201 Created`
-
-```json
-{
-  "id": 1,
-  "student": {
-    "id": 10,
-    "first_name": "Jasur",
-    "last_name": "Qodirov",
-    "username": "student001"
-  },
-  "group": {"id": 1, "name": "IELTS-A1"},
-  "score": 85,
-  "date": "2025-02-19",
-  "given_by": {
-    "id": 3,
-    "first_name": "Bobur",
-    "last_name": "Toshmatov"
-  },
-  "created_at": "2025-02-19T10:00:00+05:00"
-}
-```
-
----
-
-### `GET /api/v1/scores/{id}/`
-
-Bitta ball yozuvini ko'rish.
-
----
-
-### `PUT/PATCH /api/v1/scores/{id}/`
-
-Ball yozuvini yangilash.
-
----
-
-### `DELETE /api/v1/scores/{id}/`
-
-Ball yozuvini o'chirish. **Response:** `204 No Content`
-
----
-
-## 10. Vazifalar (Homework)
-
-Base URL: `/api/v1/homework/`
-
-**Permission:** IsAuthenticated
-
-### `GET /api/v1/homework/`
-
-Barcha vazifalar ro'yxati.
-
-#### Response `200 OK`
-
-```json
-[
-  {
-    "id": 1,
-    "group": 1,
-    "text": "Listening section bö'yicha mashq qiling",
-    "file": "http://example.com/media/homework/task1.pdf",
-    "created_at": "2025-02-18T15:00:00+05:00",
-    "updated_at": "2025-02-18T15:00:00+05:00"
-  }
-]
-```
-
----
-
-### `POST /api/v1/homework/`
-
-Yangi vazifa yaratish. **Fayl yoki matn kiritilishi shart.**
-
-#### Request Body (multipart/form-data yoki JSON)
-
-```json
-{
-  "group": 1,
-  "text": "Listening section bo'yicha mashq qiling"
-}
-```
-
-yoki fayl bilan:
-
-```
-Content-Type: multipart/form-data
-
-group=1
-file=<file>
-```
-
-| Field   | Type    | Required | Description                    |
-|---------|---------|----------|--------------------------------|
-| `group` | integer | ✅       | Aktiv guruh ID                 |
-| `text`  | string  | ❌*      | Vazifa matni                   |
-| `file`  | file    | ❌*      | Fayl (`text` yoki `file` shart)|
-
-> `text` va `file` — ikkalasidan kamida bittasi kiritilishi **shart**.  
-> `created_by` avtomatik o'rnatiladi.
-
-#### Response `201 Created`
-
-```json
-{
-  "id": 1,
-  "group": 1,
-  "text": "Listening section bo'yicha mashq qiling",
-  "file": null,
-  "created_at": "2025-02-19T11:00:00+05:00",
-  "updated_at": "2025-02-19T11:00:00+05:00"
-}
-```
-
----
-
-### `GET /api/v1/homework/{id}/`
-
-Bitta vazifani ko'rish.
-
----
-
-### `PUT/PATCH /api/v1/homework/{id}/`
-
-Vazifani yangilash.
-
----
-
-### `DELETE /api/v1/homework/{id}/`
-
-Vazifani o'chirish. **Response:** `204 No Content`
-
----
-
-### `GET /api/v1/homework/my-homework/`
-
-O'quvchining o'z guruhidagi vazifalarini ko'rish (faqat `student` roli).
-
-**Permission:** IsAuthenticated (faqat student)
-
-#### Response `200 OK`
-
-```json
-[
-  {
-    "id": 1,
-    "group": 1,
-    "text": "Listening section bo'yicha mashq qiling",
-    "file": null,
-    "created_at": "2025-02-18T15:00:00+05:00",
-    "updated_at": "2025-02-18T15:00:00+05:00"
-  }
-]
-```
-
-#### Response `403 Forbidden` (student emas)
-
-```json
-{
-  "detail": "Not a student"
-}
-```
-
----
-
-## 11. To'lovlar (Payments)
-
-Base URL: `/api/v1/payments/`
-
-**Permission:** IsAuthenticated
-
-### `GET /api/v1/payments/`
-
-Barcha to'lovlar ro'yxati.
-
-#### Response `200 OK`
-
-```json
-[
-  {
-    "id": 1,
-    "student": {
-      "id": 10,
-      "first_name": "Jasur",
-      "last_name": "Qodirov",
-      "username": "student001"
-    },
-    "group": 1,
-    "months_paid": 2,
-    "amount": "600000.00",
-    "received_by": {
-      "id": 1,
-      "first_name": "John",
-      "last_name": "Doe",
-      "username": "admin123"
-    },
-    "months": [
-      {"id": 1, "year": 2025, "month": 1, "month_name": "Yanvar"},
-      {"id": 2, "year": 2025, "month": 2, "month_name": "Fevral"}
-    ],
-    "created_at": "2025-02-01T10:00:00+05:00"
-  }
-]
-```
-
----
-
-### `POST /api/v1/payments/`
-
-Yangi to'lov qo'shish.
-
-#### Request Body
-
-```json
-{
-  "student": 10,
-  "group": 1,
-  "amount": "600000.00",
-  "months": [
-    {"year": 2025, "month": 1},
-    {"year": 2025, "month": 2}
-  ]
-}
-```
-
-| Field     | Type    | Required | Description                           |
-|-----------|---------|----------|---------------------------------------|
-| `student` | integer | ✅       | `role=student` bo'lgan foydalanuvchi  |
-| `group`   | integer | ✅       | Guruh ID                              |
-| `amount`  | decimal | ✅       | To'lov miqdori                        |
-| `months`  | array   | ❌       | To'langan oylar ro'yxati              |
-
-> `months_paid` — `months` array uzunligidan avtomatik hisoblanadi.  
-> `received_by` — avtomatik o'rnatiladi.
-
-#### Response `201 Created`
-
-```json
-{
-  "id": 1,
-  "student": {"id": 10, "first_name": "Jasur", "last_name": "Qodirov", "username": "student001"},
-  "group": 1,
-  "months_paid": 2,
-  "amount": "600000.00",
-  "received_by": {"id": 1, "first_name": "John", "last_name": "Doe", "username": "admin123"},
-  "months": [
-    {"id": 1, "year": 2025, "month": 1, "month_name": "Yanvar"},
-    {"id": 2, "year": 2025, "month": 2, "month_name": "Fevral"}
-  ],
-  "created_at": "2025-02-01T10:00:00+05:00"
-}
-```
-
----
-
-### `GET /api/v1/payments/{id}/`
-
-Bitta to'lovni ko'rish.
-
----
-
-### `PUT/PATCH /api/v1/payments/{id}/`
-
-To'lovni yangilash. `months` berilsa, eskisi o'chirib yangisi yoziladi.
-
----
-
-### `DELETE /api/v1/payments/{id}/`
-
-To'lovni o'chirish. **Response:** `204 No Content`
-
----
-
-### `GET /api/v1/payments/my-payments/`
-
-Joriy foydalanuvchining o'z to'lovlarini ko'rish.
-
-**Permission:** IsAuthenticated
-
-#### Response `200 OK`
-
-```json
-[
-  {
-    "id": 3,
-    "student": {"id": 10, "first_name": "Jasur", "last_name": "Qodirov", "username": "student001"},
-    "group": 1,
-    "months_paid": 1,
-    "amount": "300000.00",
-    "months": [{"id": 3, "year": 2025, "month": 3, "month_name": "Mart"}],
-    "created_at": "..."
-  }
-]
-```
-
----
-
-## 12. Chiqimlar (Expenses)
-
-Base URL: `/api/v1/expenses/`
-
-**Permission:** IsAuthenticated
-
-### `GET /api/v1/expenses/`
-
-Barcha chiqimlar ro'yxati.
-
-#### Response `200 OK`
-
-```json
-[
-  {
-    "id": 1,
-    "recipient": "IjaraChiqimi",
-    "recipient_user": null,
-    "amount": "1500000.00",
-    "reason": "Ijara",
-    "created_at": "2025-02-01T09:00:00+05:00"
-  }
-]
-```
-
----
-
-### `POST /api/v1/expenses/`
-
-Yangi chiqim qo'shish.
-
-#### Request Body
-
-```json
-{
-  "recipient": "Maosh",
-  "recipient_user": 3,
-  "amount": "2000000.00",
-  "reason": "Fevral uchun maosh"
-}
-```
-
-| Field            | Type    | Required | Description                     |
-|------------------|---------|----------|---------------------------------|
-| `recipient`      | string  | ❌       | Kimga/Nimaga (max 255 belgi)    |
-| `recipient_user` | integer | ❌       | Xodim ID (agar xodimga bo'lsa) |
-| `amount`         | decimal | ✅       | Miqdor                          |
-| `reason`         | string  | ✅       | Sabab (Maosh, Ijara, etc.)      |
-
-#### Response `201 Created`
-
-```json
-{
-  "id": 2,
-  "recipient": "Maosh",
-  "recipient_user": 3,
-  "amount": "2000000.00",
-  "reason": "Fevral uchun maosh",
-  "created_at": "2025-02-19T12:00:00+05:00"
-}
-```
-
----
-
-### `GET /api/v1/expenses/{id}/`
-
-Bitta chiqimni ko'rish.
-
----
-
-### `PUT/PATCH /api/v1/expenses/{id}/`
-
-Chiqimni yangilash.
-
----
-
-### `DELETE /api/v1/expenses/{id}/`
-
-Chiqimni o'chirish. **Response:** `204 No Content`
-
----
-
-## 13. Imtihonlar (Exams)
-
-Base URL: `/api/v1/exams/`
-
-**Permission:** IsAuthenticated
-
-### `GET /api/v1/exams/`
-
-Barcha imtihonlar ro'yxati.
-
-#### Response `200 OK`
-
-```json
-[
-  {
-    "id": 1,
-    "subject": 1,
-    "subject_name": "IELTS",
-    "title": "IELTS Grammar Test #1",
-    "code": "ABC123",
-    "description": "Grammatika bo'yicha haftalik test",
+    "title": "Ingliz tili - 1-hafta imtihon",
+    "code": "AB12CD",
+    "subject": 2,
+    "subject_name": "Ingliz tili",
+    "description": "Birinchi hafta uchun test",
     "time_limit": 30,
     "is_published": true,
     "is_active": true,
-    "date": "2025-02-19",
+    "date": "2026-02-20",
+    "created_by": 1,
+    "created_at": "2026-02-20T10:00:00Z",
     "questions_count": 20,
-    "participants_count": 15,
-    "created_at": "2025-02-15T10:00:00+05:00"
+    "participants_count": 15
   }
 ]
 ```
 
 ---
 
-### `POST /api/v1/exams/`
+### 2.2. Imtihon Yaratish
 
-Yangi imtihon yaratish (savollar bilan birga).
+#### `POST /api/v1/exams/`
 
-> `code` avtomatik 6 ta belgi bilan generatsiya qilinadi.
+Yangi imtihon yaratish. Savollar va variantlar birgalikda yuboriladi.  
+`code` maydoni avtomatik generatsiya qilinadi (6 ta belgi: harflar + raqamlar).
 
-#### Request Body
-
+**Request Body:**
 ```json
 {
-  "subject": 1,
-  "title": "IELTS Grammar Test #1",
-  "description": "Grammatika bo'yicha haftalik test",
+  "title": "Ingliz tili - 1-hafta imtihon",
+  "subject": 2,
+  "description": "Birinchi hafta uchun test",
   "time_limit": 30,
   "is_published": false,
-  "date": "2025-02-20",
+  "is_active": true,
+  "date": "2026-02-20",
   "questions": [
     {
-      "text": "Which sentence is correct?",
+      "text": "What is the capital of England?",
       "type": "test",
       "order": 1,
       "options": [
-        {"text": "She go to school.", "is_correct": false, "order": 1},
-        {"text": "She goes to school.", "is_correct": true, "order": 2},
-        {"text": "She going to school.", "is_correct": false, "order": 3},
-        {"text": "She gone to school.", "is_correct": false, "order": 4}
+        { "text": "London", "is_correct": true, "order": 1 },
+        { "text": "Paris", "is_correct": false, "order": 2 },
+        { "text": "Berlin", "is_correct": false, "order": 3 },
+        { "text": "Madrid", "is_correct": false, "order": 4 }
       ]
     },
     {
-      "text": "Describe the importance of reading.",
+      "text": "Describe yourself in 3 sentences.",
       "type": "written",
       "order": 2,
-      "written_answer_sample": "Reading improves vocabulary and comprehension..."
+      "written_answer_sample": "I am ...",
+      "options": []
     }
   ]
 }
 ```
 
-| Field          | Type    | Required | Description                     |
-|----------------|---------|----------|---------------------------------|
-| `subject`      | integer | ✅       | Fan ID                          |
-| `title`        | string  | ✅       | Imtihon nomi                    |
-| `description`  | string  | ❌       | Tavsif                          |
-| `time_limit`   | integer | ❌       | Vaqt (daqiqa), default: 0       |
-| `is_published` | boolean | ❌       | Default: `false`                |
-| `date`         | date    | ❌       | Default: bugungi sana           |
-| `questions`    | array   | ❌       | Savollar ro'yxati               |
+**Savol turlari (`type`):**
+| Qiymat | Tavsif |
+|--------|--------|
+| `test` | Test (a,b,c,d) — `options` talab qilinadi |
+| `written` | Yozma javob — `options` bo'sh bo'lishi mumkin |
 
-**Savol (`question`) tuzilmasi:**
+**Response `201 Created`:** — To'liq imtihon ma'lumoti (savollar va variantlar bilan)
 
-| Field                    | Type   | Required | Description                       |
-|--------------------------|--------|----------|-----------------------------------|
-| `text`                   | string | ✅       | Savol matni                       |
-| `type`                   | string | ✅       | `test` yoki `written`             |
-| `order`                  | int    | ❌       | Tartib raqami                     |
-| `options`                | array  | ❌       | Faqat `type=test` uchun           |
-| `written_answer_sample`  | string | ❌       | Faqat `type=written` uchun        |
+---
 
-**Variant (`option`) tuzilmasi:**
+### 2.3. Imtihon Tafsilotlari
 
-| Field        | Type    | Required | Description       |
-|--------------|---------|----------|-------------------|
-| `text`       | string  | ✅       | Javob varianti    |
-| `is_correct` | boolean | ✅       | To'g'ri javob     |
-| `order`      | int     | ❌       | Tartib raqami     |
+#### `GET /api/v1/exams/{id}/`
 
-#### Response `201 Created`
-
+**Response `200 OK`:**
 ```json
 {
   "id": 1,
-  "code": "XA7K2P",
-  "title": "IELTS Grammar Test #1",
-  "subject": 1,
-  "description": "Grammatika bo'yicha haftalik test",
+  "title": "Ingliz tili - 1-hafta imtihon",
+  "code": "AB12CD",
+  "subject": 2,
+  "description": "...",
   "time_limit": 30,
-  "is_published": false,
+  "is_published": true,
   "is_active": true,
-  "date": "2025-02-20",
+  "date": "2026-02-20",
+  "created_by": 1,
+  "created_at": "2026-02-20T10:00:00Z",
   "questions": [
     {
       "id": 1,
-      "text": "Which sentence is correct?",
+      "text": "What is the capital of England?",
       "type": "test",
       "order": 1,
+      "written_answer_sample": null,
       "options": [
-        {"id": 1, "text": "She go to school.", "is_correct": false},
-        {"id": 2, "text": "She goes to school.", "is_correct": true},
-        {"id": 3, "text": "She going to school.", "is_correct": false},
-        {"id": 4, "text": "She gone to school.", "is_correct": false}
+        { "id": 1, "text": "London", "is_correct": true, "order": 1 },
+        { "id": 2, "text": "Paris", "is_correct": false, "order": 2 },
+        { "id": 3, "text": "Berlin", "is_correct": false, "order": 3 },
+        { "id": 4, "text": "Madrid", "is_correct": false, "order": 4 }
       ]
     }
-  ],
-  "created_at": "2025-02-19T10:00:00+05:00"
+  ]
 }
 ```
 
 ---
 
-### `GET /api/v1/exams/{id}/`
+### 2.4. Imtihonni Yangilash
 
-Bitta imtihon barcha savollar bilan.
+#### `PUT /api/v1/exams/{id}/`
+#### `PATCH /api/v1/exams/{id}/`
 
----
+Yangilashda `questions` yuborilsa — eski savollar o'chirilib, yangilari yoziladi.
 
-### `PUT/PATCH /api/v1/exams/{id}/`
-
-Imtihonni yangilash. `questions` berilsa, eskisi o'chirib yangisi yoziladi.
-
----
-
-### `DELETE /api/v1/exams/{id}/`
-
-Imtihonni o'chirish. **Response:** `204 No Content`
+**Request Body:** — Yuqoridagi POST bilan bir xil format  
+**Response `200 OK`:** — Yangilangan imtihon tafsilotlari
 
 ---
 
-### `POST /api/v1/exams/enter-code/`
+### 2.5. Imtihonni O'chirish
 
-Imtihon kodini kiritib imtihon ma'lumotlarini olish.
+#### `DELETE /api/v1/exams/{id}/`
 
-#### Request Body
+**Response `204 No Content`**
 
+---
+
+### 2.6. Imtihonni Kod Orqali Topish
+
+#### `POST /api/v1/exams/enter-code/`
+
+O'quvchi imtihon kodini kiritib, imtihon ma'lumotlarini oladi.
+
+**Request Body:**
 ```json
 {
-  "code": "XA7K2P"
+  "code": "AB12CD"
 }
 ```
 
-#### Response `200 OK`
-
+**Response `200 OK`:**
 ```json
 {
   "id": 1,
-  "code": "XA7K2P",
-  "title": "IELTS Grammar Test #1",
+  "title": "Ingliz tili - 1-hafta imtihon",
+  "code": "AB12CD",
+  "subject": 2,
+  "time_limit": 30,
+  "is_published": true,
+  "is_active": true,
   "questions": [ ... ]
 }
 ```
 
+**Response `404 Not Found`:** — Kod topilmasa
+
 ---
 
-### `POST /api/v1/exams/{id}/publish/`
+### 2.7. Imtihonni Nashr Etish
 
-Imtihonni nashr etish.
+#### `POST /api/v1/exams/{id}/publish/`
 
-**Permission:** IsAuthenticated
+Imtihon `is_published = True` ga o'tadi va o'quvchilar uchun ko'rinadi.
 
-#### Response `200 OK`
-
+**Request Body:** Yo'q  
+**Response `200 OK`:**
 ```json
 {
   "status": "Test nashr etildi"
@@ -1474,12 +258,14 @@ Imtihonni nashr etish.
 
 ---
 
-### `POST /api/v1/exams/{id}/unpublish/`
+### 2.8. Nashrdan Olish
 
-Imtihonni nashrdan olish.
+#### `POST /api/v1/exams/{id}/unpublish/`
 
-#### Response `200 OK`
+Imtihon `is_published = False` ga o'tadi.
 
+**Request Body:** Yo'q  
+**Response `200 OK`:**
 ```json
 {
   "status": "Test nashrdan olindi"
@@ -1488,1036 +274,661 @@ Imtihonni nashrdan olish.
 
 ---
 
-### `POST /api/v1/exams/{id}/copy/`
+### 2.9. Imtihonni Nusxalash
 
-Imtihonning nusxasini olish. Yangi `code` generatsiya qilinadi, `is_published=false`.
+#### `POST /api/v1/exams/{id}/copy/`
 
-#### Response `200 OK`
+Imtihonning to'liq nusxasini yaratadi:
+- Yangi unikal `code` generatsiya qilinadi
+- Sarlavhaga `(Nusxa)` qo'shiladi
+- `is_published = False` bo'ladi
+- Barcha savollar va variantlar nusxalanadi
 
-```json
-{
-  "id": 2,
-  "code": "ZB9M1Q",
-  "title": "IELTS Grammar Test #1 (Nusxa)",
-  "is_published": false,
-  ...
-}
-```
+**Request Body:** Yo'q  
+**Response `201 Created`:** — Yangi nusxa imtihon tafsilotlari (savollar bilan)
 
 ---
 
-### `POST /api/v1/exams/{id}/submit/`
+### 2.10. Imtihonni Topshirish (Submit)
 
-O'quvchi imtihon javoblarini yuborish.
+#### `POST /api/v1/exams/{id}/submit/`
 
-> Imtihon `is_published=true` va `is_active=true` bo'lishi shart.
+O'quvchi imtihonni topshiradi. Har bir savol uchun javob yuboriladi.
 
-#### Request Body
+**Shartlar:**
+- Imtihon `is_published = True` va `is_active = True` bo'lishi shart
+- Bir o'quvchi bir imtihonni faqat **bir marta** topshira oladi
 
+**Request Body:**
 ```json
 {
   "answers": [
     {
       "question_id": 1,
-      "option_id": 2
+      "option_id": 1
     },
     {
       "question_id": 2,
-      "written_answer": "Reading improves vocabulary and comprehension skills."
+      "option_id": null,
+      "written_answer": "I am a student from Tashkent..."
     }
   ]
 }
 ```
 
-| Field            | Type    | Required | Description                                  |
-|------------------|---------|----------|----------------------------------------------|
-| `question_id`    | integer | ✅       | Savol ID                                     |
-| `option_id`      | integer | ❌       | Variant ID (faqat `type=test` uchun)         |
-| `written_answer` | string  | ❌       | Yozma javob (faqat `type=written` uchun)     |
+**Javob Maydonlari:**
+| Maydon | Tur | Tavsif |
+|--------|-----|--------|
+| `question_id` | int | Savol ID si |
+| `option_id` | int \| null | Test savollar uchun tanlangan variant ID |
+| `written_answer` | string \| null | Yozma savollar uchun matn |
 
-#### Response `201 Created`
-
+**Response `200 OK`:**
 ```json
 {
   "id": 5,
   "exam": 1,
-  "exam_title": "IELTS Grammar Test #1",
+  "exam_title": "Ingliz tili - 1-hafta imtihon",
   "student": 10,
-  "score": 80.0,
-  "correct_answers": 16,
+  "score": 85.5,
+  "correct_answers": 17,
   "total_questions": 20,
   "is_checked": false,
   "checked_by": null,
+  "created_at": "2026-02-20T11:30:00Z",
   "answers": [
     {
       "id": 1,
+      "exam_result": 5,
       "question": 1,
-      "question_text": "Which sentence is correct?",
-      "option": 2,
-      "option_text": "She goes to school.",
+      "question_text": "What is the capital of England?",
+      "option": 1,
+      "option_text": "London",
       "written_answer": null,
       "is_correct": true
+    },
+    {
+      "id": 2,
+      "exam_result": 5,
+      "question": 2,
+      "question_text": "Describe yourself in 3 sentences.",
+      "option": null,
+      "option_text": null,
+      "written_answer": "I am a student from Tashkent...",
+      "is_correct": false
     }
-  ],
-  "created_at": "2025-02-19T15:00:00+05:00"
+  ]
+}
+```
+
+**Response `400 Bad Request` — Imtihon faol emas:**
+```json
+{
+  "error": "Ushbu test hozirda faol emas."
+}
+```
+
+**Response `400 Bad Request` — Allaqachon topshirilgan:**
+```json
+{
+  "error": "Siz bu testni allaqachon topshirgansiz."
 }
 ```
 
 ---
 
-## 14. Imtihon Natijalari (Exam Results)
+### Scoring Logikasi
 
-Base URL: `/api/v1/exam-results/`
+```
+score (foiz) = (to'g'ri javoblar soni / jami savollar soni) × 100
+```
+- `test` turidagi savollar avtomatik tekshiriladi
+- `written` turidagi savollar `is_correct = False` holda saqlanadi (o'qituvchi tekshiradi)
 
-**Permission:** IsAuthenticated
+---
 
-> O'quvchilar faqat o'z natijalarini ko'radi. Admin/xodimlar barchani ko'radi.
+---
 
-### `GET /api/v1/exam-results/`
+## 3. Exam Results — Imtihon Natijalari
 
-Barcha imtihon natijalari.
+**Base path:** `/api/v1/exam-results/`  
+**Permission:** `IsAuthenticated`
 
-#### Response `200 OK`
+> **Muhim:** O'quvchi faqat o'zining natijalarini ko'ra oladi. Owner/Employee barcha natijalarni ko'ra oladi.
 
+---
+
+### 3.1. Barcha Natijalar Ro'yxati
+
+#### `GET /api/v1/exam-results/`
+
+- **Owner / Employee:** Tizimda barcha natijalar
+- **Student:** Faqat o'z natijalari
+
+**Response `200 OK`:**
 ```json
 [
   {
     "id": 5,
     "exam": 1,
     "student": 10,
-    "score": 80.0,
-    "correct_answers": 16,
+    "score": 85.5,
+    "correct_answers": 17,
     "total_questions": 20,
     "is_checked": false,
     "checked_by": null,
-    "created_at": "2025-02-19T15:00:00+05:00"
+    "created_at": "2026-02-20T11:30:00Z"
   }
 ]
 ```
 
 ---
 
-### `GET /api/v1/exam-results/my-results/`
+### 3.2. Natija Tafsilotlari
 
-Joriy foydalanuvchining barcha imtihon natijalari.
+#### `GET /api/v1/exam-results/{id}/`
 
-#### Response `200 OK`
+**Response `200 OK`:**
+```json
+{
+  "id": 5,
+  "exam": 1,
+  "student": 10,
+  "score": 85.5,
+  "correct_answers": 17,
+  "total_questions": 20,
+  "is_checked": false,
+  "checked_by": null,
+  "created_at": "2026-02-20T11:30:00Z"
+}
+```
 
+---
+
+### 3.3. Natija Yaratish
+
+#### `POST /api/v1/exam-results/`
+
+**Request Body:**
+```json
+{
+  "exam": 1,
+  "student": 10,
+  "score": 85.5,
+  "correct_answers": 17,
+  "total_questions": 20,
+  "is_checked": false,
+  "checked_by": null
+}
+```
+
+**Response `201 Created`:** — Yaratilgan natija
+
+> **Eslatma:** Odatda natijalar `submit` action orqali avtomatik yaratiladi. Bu endpoint to'g'ridan-to'g'ri yozish uchun.
+
+---
+
+### 3.4. Natijani Yangilash
+
+#### `PUT /api/v1/exam-results/{id}/`
+#### `PATCH /api/v1/exam-results/{id}/`
+
+O'qituvchi yozma savollarni tekshirib, `is_checked = true`, `checked_by` ni to'ldirishi mumkin.
+
+**Request Body (PATCH):**
+```json
+{
+  "is_checked": true,
+  "checked_by": 3,
+  "score": 90.0,
+  "correct_answers": 18
+}
+```
+
+**Response `200 OK`:** — Yangilangan natija
+
+---
+
+### 3.5. Natijani O'chirish
+
+#### `DELETE /api/v1/exam-results/{id}/`
+
+**Response `204 No Content`**
+
+---
+
+### 3.6. Mening Natijalarim
+
+#### `GET /api/v1/exam-results/my-results/`
+
+Faqat login qilgan foydalanuvchining o'z natijalari.
+
+**Response `200 OK`:**
 ```json
 [
   {
     "id": 5,
     "exam": 1,
     "student": 10,
-    "score": 80.0,
-    "correct_answers": 16,
+    "score": 85.5,
+    "correct_answers": 17,
     "total_questions": 20,
-    "is_checked": true,
-    "checked_by": 3,
-    "created_at": "..."
+    "is_checked": false,
+    "checked_by": null,
+    "created_at": "2026-02-20T11:30:00Z"
   }
 ]
 ```
 
 ---
 
-### `PUT/PATCH /api/v1/exam-results/{id}/`
+---
 
-Imtihon natijasini yangilash (masalan, `is_checked=true`).
+## 4. Messages — Telegram Xabarlar
+
+**Base path:** `/api/v1/messages/`  
+**Permission:** `IsAuthenticated`
+
+O'quvchilarga Telegram bot orqali xabar yuborish uchun ishlatiladi. Xabar yuborish Celery task orqali asinxron bajariladi.
 
 ---
 
-### `DELETE /api/v1/exam-results/{id}/`
+### 4.1. Barcha Xabarlar Ro'yxati
 
-Imtihon natijasini o'chirish. **Response:** `204 No Content`
+#### `GET /api/v1/messages/`
 
----
+Xabarlar `created_at` bo'yicha yangilaridan eskisiga tartiblanadi.
 
-## 15. Ish Hisobi (Work Logs)
-
-Base URL: `/api/v1/work-logs/`
-
-**Permission:** IsAuthenticated
-
-> **Read-only** endpoint. Yozuvlar xodimlar amal bajarganida avtomatik yaratiladi (davomat, ball, vazifa qo'shganda).
-
-### `GET /api/v1/work-logs/`
-
-Barcha xodimlar ish hisoblari.
-
-#### Response `200 OK`
-
+**Response `200 OK`:**
 ```json
 [
   {
     "id": 1,
-    "employee": 3,
-    "date": "2025-02-19",
-    "status": true,
-    "note": null,
-    "created_at": "2025-02-19T09:00:00+05:00"
-  }
-]
-```
-
-| Field      | Type    | Description                        |
-|------------|---------|------------------------------------|
-| `employee` | integer | Xodim ID                           |
-| `date`     | date    | Sana                               |
-| `status`   | boolean | `true` — ishga keldi               |
-| `note`     | string  | Izoh (optional)                    |
-
----
-
-### `GET /api/v1/work-logs/{id}/`
-
-Bitta ish hisob yozuvini ko'rish.
-
----
-
-## 16. Dashboard / Statistika
-
-### `GET /api/v1/dashboard/`
-
-Markazning umumiy moliyaviy va davomat statistikasi.
-
-**Permission:** IsAuthenticated
-
-#### Response `200 OK`
-
-```json
-{
-  "finance": {
-    "income": "15000000.00",
-    "expense": "5000000.00",
-    "profit": "10000000.00"
-  },
-  "attendance": {
-    "employees_present_today": 4,
-    "total_employees": 5
-  }
-}
-```
-
-| Field                       | Type    | Description                     |
-|-----------------------------|---------|---------------------------------|
-| `finance.income`            | decimal | Jami kirim (barcha to'lovlar)   |
-| `finance.expense`           | decimal | Jami chiqim                     |
-| `finance.profit`            | decimal | Foyda (kirim - chiqim)          |
-| `attendance.employees_present_today` | int | Bugun kelgan xodimlar soni  |
-| `attendance.total_employees`| int     | Jami xodimlar soni              |
-
----
-
-## 17. Telegram Xabarlar (Messages)
-
-Base URL: `/api/v1/messages/`
-
-**Permission:** IsAuthenticated
-
-> Xabar yaratilganda Celery orqali qabul qiluvchilarning Telegram-ga xabar yuboriladi.
-
-### `GET /api/v1/messages/`
-
-Barcha yuborilgan xabarlar (yangilaridan eskisiga tartiblangan).
-
-#### Response `200 OK`
-
-```json
-[
-  {
-    "id": 1,
-    "text": "Ertaga dars yo'q!",
+    "text": "Ertaga imtihon bor, tayyorlanib keling!",
     "recipients": [10, 11, 12],
-    "created_at": "2025-02-19T16:00:00+05:00",
+    "sent_by": 3,
     "logs": [
       {
         "id": 1,
         "message": 1,
         "recipient": 10,
-        "recipient_name": "Jasur Qodirov",
+        "recipient_name": "Ali Valiyev",
         "status": "sent",
         "error": null,
-        "sent_at": "2025-02-19T16:00:30+05:00"
+        "sent_at": "2026-02-20T09:05:00Z"
       },
       {
         "id": 2,
         "message": 1,
         "recipient": 11,
-        "recipient_name": "Dilnoza Yusupova",
+        "recipient_name": "Vali Aliyev",
         "status": "failed",
-        "error": "Telegram ID topilmadi",
+        "error": "O'quvchining telegram_id si yo'q",
         "sent_at": null
       }
-    ]
+    ],
+    "created_at": "2026-02-20T09:00:00Z"
   }
 ]
 ```
 
 ---
 
-### `POST /api/v1/messages/`
+### 4.2. Xabar Yaratish va Yuborish
 
-Yangi xabar yuborish.
+#### `POST /api/v1/messages/`
 
-#### Request Body
+Yangi xabar yaratilishi bilan Celery orqali Telegram xabarlari yuboriladi.
 
+**Request Body:**
 ```json
 {
-  "text": "Ertaga dars yo'q!",
+  "text": "Ertaga imtihon bor, tayyorlanib keling!",
   "recipient_ids": [10, 11, 12]
 }
 ```
 
-| Field           | Type         | Required | Description                        |
-|-----------------|--------------|----------|------------------------------------|
-| `text`          | string       | ✅       | Xabar matni                        |
-| `recipient_ids` | array[int]   | ✅       | O'quvchilar ID ro'yxati            |
+| Maydon | Tur | Tavsif |
+|--------|-----|--------|
+| `text` | string | Yuborilayotgan xabar matni (HTML format qo'llab-quvvatlanadi) |
+| `recipient_ids` | int[] | Xabar yuboriladigan o'quvchilar ID lari ro'yxati |
 
-> Faqat `role=student` bo'lgan foydalanuvchilarga xabar yuboriladi.  
-> `sent_by` avtomatik o'rnatiladi.
+> **Eslatma:** `recipient_ids` da faqat `role = "student"` bo'lgan foydalanuvchilar hisobga olinadi. Boshqa rollar filtrlanib tashlanadi.
 
-#### Response `201 Created`
-
+**Response `201 Created`:**
 ```json
 {
-  "id": 2,
-  "text": "Ertaga dars yo'q!",
+  "id": 1,
+  "text": "Ertaga imtihon bor, tayyorlanib keling!",
   "recipients": [10, 11, 12],
-  "created_at": "2025-02-19T16:00:00+05:00",
-  "logs": []
-}
-```
-
-**Log Statuses:**
-
-| Qiymat    | Ma'no                     |
-|-----------|---------------------------|
-| `pending` | Kutilmoqda (yuborilmagan) |
-| `sent`    | Muvaffaqiyatli yuborildi  |
-| `failed`  | Xatolik yuz berdi         |
-
----
-
-### `GET /api/v1/messages/{id}/`
-
-Bitta xabarni ko'rish.
-
----
-
-### `DELETE /api/v1/messages/{id}/`
-
-Xabarni o'chirish. **Response:** `204 No Content`
-
----
-
-## 18. Mock Test (IELTS)
-
-Base URL: `/api/v1/mock/`
-
-IELTS Mock Test bo'limi — Reading, Writing, Listening bo'limlaridan iborat to'liq imtihon sessiyasini boshqarish uchun.
-
----
-
-### 18.1 Testlar
-
-#### `GET /api/v1/mock/tests/`
-
-Barcha testlar ro'yxati.
-
-**Permission:** IsAuthenticated
-
-#### Response `200 OK`
-
-```json
-[
-  {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "title": "IELTS Mock Test #1",
-    "code": "MK1001",
-    "created_by": {
-      "first_name": "Bobur",
-      "last_name": "Toshmatov"
-    },
-    "reading": {
-      "id": 1,
-      "file": "http://example.com/media/tests/reading/test1.pdf",
-      "duration": 60,
-      "question_count": 40,
-      "created_at": "2025-01-10T00:00:00+05:00",
-      "updated_at": "2025-01-10T00:00:00+05:00"
-    },
-    "writing": {
-      "id": 1,
-      "file": "http://example.com/media/tests/writing/task1.pdf",
-      "duration": 60,
-      "question_count": 2,
-      "created_at": "...",
-      "updated_at": "..."
-    },
-    "listening": {
-      "id": 1,
-      "audio_file": "http://example.com/media/mock_tests/listening/audio/audio1.mp3",
-      "question_file": "http://example.com/media/mock_tests/listening/questions/q1.pdf",
-      "duration": 30,
-      "question_count": 40,
-      "created_at": "...",
-      "updated_at": "..."
-    },
-    "created_at": "2025-01-10T00:00:00+05:00",
-    "updated_at": "2025-01-10T00:00:00+05:00"
-  }
-]
-```
-
----
-
-#### `POST /api/v1/mock/tests/create/`
-
-Yangi test yaratish (Reading + Writing + Listening bo'limlari bilan birga).
-
-**Permission:** IsAuthenticated + IsWorkerPermission (owner yoki employee)
-
-**Content-Type:** `multipart/form-data`
-
-#### Request Body
-
-```
-title: IELTS Mock Test #1
-
-reading[file]: <PDF fayl>
-reading[duration]: 60
-reading[question_count]: 40
-
-writing[file]: <PDF fayl>
-writing[duration]: 60
-writing[question_count]: 2
-
-listening[audio_file]: <MP3 fayl>
-listening[question_file]: <PDF fayl>
-listening[duration]: 30
-listening[question_count]: 40
-```
-
-> JSON formatida (nested):
-
-```json
-{
-  "title": "IELTS Mock Test #1",
-  "reading": {
-    "file": "<binary>",
-    "duration": 60,
-    "question_count": 40
-  },
-  "writing": {
-    "file": "<binary>",
-    "duration": 60,
-    "question_count": 2
-  },
-  "listening": {
-    "audio_file": "<binary>",
-    "question_file": "<binary>",
-    "duration": 30,
-    "question_count": 40
-  }
-}
-```
-
-| Field                       | Type    | Required | Description                 |
-|-----------------------------|---------|----------|-----------------------------|
-| `title`                     | string  | ✅       | Test nomi                   |
-| `reading.file`              | file    | ✅       | Reading PDF fayl            |
-| `reading.duration`          | integer | ✅       | Vaqt (daqiqa)               |
-| `reading.question_count`    | integer | ✅       | Savollar soni               |
-| `writing.file`              | file    | ✅       | Writing PDF fayl            |
-| `writing.duration`          | integer | ✅       | Vaqt (daqiqa)               |
-| `writing.question_count`    | integer | ✅       | Savollar soni               |
-| `listening.audio_file`      | file    | ✅       | Listening audio (MP3)       |
-| `listening.question_file`   | file    | ✅       | Savollar PDF fayli          |
-| `listening.duration`        | integer | ✅       | Vaqt (daqiqa)               |
-| `listening.question_count`  | integer | ✅       | Savollar soni               |
-
-> `code` avtomatik 6 ta belgi bilan generatsiya qilinadi.  
-> `created_by` avtomatik o'rnatiladi.
-
-#### Response `201 Created`
-
-```json
-{
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "title": "IELTS Mock Test #1",
-  "code": "MK1001",
-  "reading": { ... },
-  "writing": { ... },
-  "listening": { ... },
-  "created_at": "...",
-  "updated_at": "..."
-}
-```
-
----
-
-#### `GET /api/v1/mock/tests/{uuid}/`
-
-Bitta testni ko'rish.
-
-**Permission:** IsAuthenticated + IsWorkerPermission
-
----
-
-#### `DELETE /api/v1/mock/tests/{uuid}/`
-
-Testni o'chirish. **Response:** `204 No Content`
-
-**Permission:** IsAuthenticated + IsWorkerPermission
-
----
-
-### 18.2 Test Sessiyasi
-
-#### `POST /api/v1/mock/session/start/`
-
-Test sessiyasini boshlash.
-
-**Permission:** IsAuthenticated
-
-> Har bir foydalanuvchi bir test uchun faqat bitta aktiv sessiyaga ega bo'lishi mumkin.  
-> Sessiya boshlanganda Celery task ishga tushadi — test_duration o'tganida sessiya avtomatik yakunlanadi.
-
-#### Request Body
-
-```json
-{
-  "test": "550e8400-e29b-41d4-a716-446655440000",
-  "code": "MK1001"
-}
-```
-
-| Field  | Type   | Required | Description         |
-|--------|--------|----------|---------------------|
-| `test` | UUID   | ✅       | Test UUID           |
-| `code` | string | ✅       | Test kodi (6 belgi) |
-
-#### Response `201 Created`
-
-```json
-{
-  "id": "7b3f4e2a-1c5d-4a8b-9e3f-2d6a1b4c5e7f",
-  "user": {
-    "id": 10,
-    "first_name": "Jasur",
-    "last_name": "Qodirov",
-    "group": {
-      "id": 1,
-      "name": "IELTS-A1"
-    }
-  },
-  "test": "550e8400-e29b-41d4-a716-446655440000",
-  "started_at": "2025-02-19T10:00:00+05:00",
-  "ended_at": null,
-  "is_completed": false,
-  "is_finished": false,
-  "listening": {
-    "id": 1,
-    "audio_file": "http://example.com/media/mock_tests/listening/audio/audio1.mp3",
-    "question_file": "http://example.com/media/mock_tests/listening/questions/q1.pdf",
-    "duration": 30,
-    "question_count": 40
-  }
-}
-```
-
-#### Response `400 Bad Request` (kod noto'g'ri)
-
-```json
-{
-  "detail": "Test kodi noto'g'ri."
-}
-```
-
-#### Response `400 Bad Request` (aktiv sessiya mavjud)
-
-```json
-{
-  "detail": "Sizda bu test uchun aktiv session mavjud."
-}
-```
-
----
-
-#### `GET /api/v1/mock/session/me/`
-
-Joriy foydalanuvchining barcha sessiyalari.
-
-**Permission:** IsAuthenticated
-
-#### Response `200 OK`
-
-```json
-[
-  {
-    "id": "7b3f4e2a-...",
-    "user": {
-      "id": 10,
-      "first_name": "Jasur",
-      "last_name": "Qodirov",
-      "group": {"id": 1, "name": "IELTS-A1"}
-    },
-    "test": null,
-    "started_at": "2025-02-19T10:00:00+05:00",
-    "ended_at": "2025-02-19T12:30:00+05:00",
-    "is_completed": true,
-    "is_finished": true,
-    "score": {
-      "id": 1,
-      "listening": 7.5,
-      "reading": 8.0,
-      "writing": 7.0,
-      "speaking": 7.5,
-      "score": 7.5,
-      "created_by": {
-        "id": 3,
-        "first_name": "Bobur",
-        "last_name": "Toshmatov"
-      }
-    }
-  }
-]
-```
-
-> `test` maydoni faqat `is_completed=true` bo'lganda to'liq test ma'lumotlarini qaytaradi, aks holda `null`.
-
----
-
-#### `GET /api/v1/mock/session/reading/{session_id}/`
-
-Sessiyaning Reading bo'limini ko'rish.
-
-**Permission:** IsAuthenticated (faqat sessiya egasi)
-
-#### Response `200 OK`
-
-```json
-{
-  "id": 1,
-  "file": "http://example.com/media/tests/reading/test1.pdf",
-  "duration": 60,
-  "question_count": 40,
-  "created_at": "...",
-  "updated_at": "..."
-}
-```
-
----
-
-#### `GET /api/v1/mock/session/writing/{session_id}/`
-
-Sessiyaning Writing bo'limini ko'rish.
-
-**Permission:** IsAuthenticated (faqat sessiya egasi)
-
-#### Response `200 OK`
-
-```json
-{
-  "id": 1,
-  "file": "http://example.com/media/tests/writing/task1.pdf",
-  "duration": 60,
-  "question_count": 2,
-  "created_at": "...",
-  "updated_at": "..."
-}
-```
-
----
-
-#### `POST /api/v1/mock/session/{uuid}/finish/`
-
-Test sessiyasini yakunlash.
-
-**Permission:** IsAuthenticated (faqat sessiya egasi)
-
-> Sessiya allaqachon yakunlangan bo'lsa xato qaytariladi.
-
-#### Response `200 OK`
-
-```json
-{
-  "id": "7b3f4e2a-...",
-  "user": { ... },
-  "test": { ... },
-  "started_at": "2025-02-19T10:00:00+05:00",
-  "ended_at": "2025-02-19T12:30:00+05:00",
-  "is_completed": true,
-  "is_finished": false
-}
-```
-
-#### Response `400 Bad Request` (allaqachon yakunlangan)
-
-```json
-{
-  "detail": "Bu session allaqachon yakunlangan."
-}
-```
-
----
-
-#### `GET /api/v1/mock/session/{session_id}/answers/`
-
-Bitta sessiyaning barcha javoblarini ko'rish.
-
-**Permission:** IsAuthenticated + IsWorkerPermission
-
-#### Response `200 OK`
-
-```json
-{
-  "session": {
-    "id": "7b3f4e2a-...",
-    "user": { ... },
-    "test": { ... },
-    "is_completed": true,
-    "is_finished": false
-  },
-  "reading_answer": {
-    "id": 1,
-    "session": "7b3f4e2a-...",
-    "answers": {"1": "A", "2": "B", "3": "carbon dioxide"},
-    "created_at": "..."
-  },
-  "listening_answer": {
-    "id": 1,
-    "session": "7b3f4e2a-...",
-    "answers": {"1": "C", "2": "D"},
-    "created_at": "..."
-  },
-  "writing_answers": [
+  "sent_by": 3,
+  "logs": [
     {
       "id": 1,
-      "session": "7b3f4e2a-...",
-      "task_number": 1,
-      "text": "The chart shows that...",
-      "teacher_comment": null
-    },
-    {
-      "id": 2,
-      "session": "7b3f4e2a-...",
-      "task_number": 2,
-      "text": "In my opinion...",
-      "teacher_comment": null
+      "message": 1,
+      "recipient": 10,
+      "recipient_name": "Ali Valiyev",
+      "status": "pending",
+      "error": null,
+      "sent_at": null
     }
-  ]
+  ],
+  "created_at": "2026-02-20T09:00:00Z"
 }
 ```
+
+> **Celery jarayoni:** Xabar yaratilib saqlanishi bilan `send_telegram_message` Celery task ishga tushadi va har bir qabul qiluvchiга Telegram Bot API orqali xabar yuboradi. `logs` da har bir qabul qiluvchi uchun holat saqlanadi.
 
 ---
 
-#### `GET /api/v1/mock/session/answers/`
+### 4.3. Xabar Tafsilotlari
 
-Barcha yakunlangan sessiyalarning javoblari.
+#### `GET /api/v1/messages/{id}/`
 
-**Permission:** IsAuthenticated + IsWorkerPermission
-
-#### Response `200 OK`
-
-```json
-[
-  {
-    "session": { ... },
-    "reading_answer": { ... },
-    "listening_answer": { ... },
-    "writing_answers": [ ... ]
-  }
-]
-```
+**Response `200 OK`:** — Yuqoridagi ro'yxat elementi singari (logs bilan)
 
 ---
 
-### 18.3 Javoblar
+### 4.4. Xabarni Yangilash
 
-#### `POST /api/v1/mock/answers/reading/`
+#### `PUT /api/v1/messages/{id}/`
+#### `PATCH /api/v1/messages/{id}/`
 
-Reading javoblarini yuborish.
-
-**Permission:** IsAuthenticated (faqat sessiya egasi)
-
-#### Request Body
-
+**Request Body:**
 ```json
 {
-  "session": "7b3f4e2a-1c5d-4a8b-9e3f-2d6a1b4c5e7f",
-  "answers": {
-    "1": "A",
-    "2": "carbon dioxide",
-    "3": "TRUE",
-    "4": "NOT GIVEN"
-  }
+  "text": "Yangilangan xabar matni"
 }
 ```
 
-| Field     | Type   | Required | Description                                     |
-|-----------|--------|----------|-------------------------------------------------|
-| `session` | UUID   | ✅       | Sessiya UUID                                    |
-| `answers` | object | ✅       | JSON: `{"savol_raqami": "javob"}` formatda     |
-
-> Har bir sessiya uchun faqat **bitta** Reading javobi bo'lishi mumkin (OneToOne).
-
-#### Response `201 Created`
-
-```json
-{
-  "id": 1,
-  "session": "7b3f4e2a-...",
-  "answers": {
-    "1": "A",
-    "2": "carbon dioxide",
-    "3": "TRUE",
-    "4": "NOT GIVEN"
-  },
-  "created_at": "2025-02-19T10:30:00+05:00",
-  "updated_at": "2025-02-19T10:30:00+05:00"
-}
-```
+**Response `200 OK`:** — Yangilangan xabar
 
 ---
 
-#### `POST /api/v1/mock/answers/writing/`
+### 4.5. Xabarni O'chirish
 
-Writing javobini yuborish (Task 1 yoki Task 2 alohida).
+#### `DELETE /api/v1/messages/{id}/`
 
-**Permission:** IsAuthenticated (faqat sessiya egasi)
-
-#### Request Body
-
-```json
-{
-  "session": "7b3f4e2a-1c5d-4a8b-9e3f-2d6a1b4c5e7f",
-  "task_number": 1,
-  "text": "The pie chart illustrates the distribution of water usage..."
-}
-```
-
-| Field         | Type    | Required | Validation                     |
-|---------------|---------|----------|--------------------------------|
-| `session`     | UUID    | ✅       | Sessiya UUID                   |
-| `task_number` | integer | ✅       | Faqat `1` yoki `2`             |
-| `text`        | string  | ❌       | Yozma javob matni              |
-
-> Bitta sessiyada har bir `task_number` uchun faqat bitta yozma javob bo'lishi mumkin.
-
-#### Response `201 Created`
-
-```json
-{
-  "id": 1,
-  "session": "7b3f4e2a-...",
-  "task_number": 1,
-  "text": "The pie chart illustrates...",
-  "teacher_comment": null,
-  "created_at": "2025-02-19T11:00:00+05:00",
-  "updated_at": "2025-02-19T11:00:00+05:00"
-}
-```
+**Response `204 No Content`**
 
 ---
 
-#### `POST /api/v1/mock/answers/listening/`
+### MessageLog Status Holatlari
 
-Listening javoblarini yuborish.
+| Status | Tavsif |
+|--------|--------|
+| `pending` | Xabar navbatda, hali yuborilmagan |
+| `sent` | Telegram orqali muvaffaqiyatli yuborildi |
+| `failed` | Yuborishda xatolik yuz berdi (`error` maydoni sabab ko'rsatadi) |
 
-**Permission:** IsAuthenticated (faqat sessiya egasi)
-
-#### Request Body
-
-```json
-{
-  "session": "7b3f4e2a-1c5d-4a8b-9e3f-2d6a1b4c5e7f",
-  "answers": {
-    "1": "C",
-    "2": "accommodation",
-    "3": "B",
-    "4": "Thursday"
-  }
-}
-```
-
-> Har bir sessiya uchun faqat **bitta** Listening javobi bo'lishi mumkin (OneToOne).
-
-#### Response `201 Created`
-
-```json
-{
-  "id": 1,
-  "session": "7b3f4e2a-...",
-  "answers": {
-    "1": "C",
-    "2": "accommodation",
-    "3": "B",
-    "4": "Thursday"
-  },
-  "created_at": "...",
-  "updated_at": "..."
-}
-```
+### Xatolik sabablari (`error` maydoni):
+| Xatolik | Sabab |
+|---------|-------|
+| `O'quvchining telegram_id si yo'q` | Foydalanuvchi profilida `telegram_id` yo'q |
+| `TELEGRAM_BOT_TOKEN topilmadi` | Server `.env` da bot token sozlanmagan |
+| Boshqa matn | Telegram API dan kelgan xatolik (maks. 500 belgi) |
 
 ---
 
-### 18.4 Natijalar (Scores)
+---
 
-#### `POST /api/v1/mock/score/create/`
+## 5. Work Logs — Ish Hisobi
 
-Test sessiyasiga IELTS bali qo'yish.
-
-**Permission:** IsAuthenticated + IsWorkerPermission
-
-> Ball qo'yilgandan so'ng sessiyaning `is_finished=true` bo'ladi.
-
-#### Request Body
-
-```json
-{
-  "session": "7b3f4e2a-1c5d-4a8b-9e3f-2d6a1b4c5e7f",
-  "listening": 7.5,
-  "reading": 8.0,
-  "writing": 7.0,
-  "speaking": 6.5
-}
-```
-
-| Field       | Type  | Required | Validation      |
-|-------------|-------|----------|-----------------|
-| `session`   | UUID  | ✅       | Sessiya UUID    |
-| `listening` | float | ✅       | 0.0 — 9.0       |
-| `reading`   | float | ✅       | 0.0 — 9.0       |
-| `writing`   | float | ✅       | 0.0 — 9.0       |
-| `speaking`  | float | ✅       | 0.0 — 9.0       |
-
-> `created_by` avtomatik o'rnatiladi.  
-> `score` (umumiy ball) backend tomonidan IELTS qoidasi bo'yicha hisoblanadi.
-
-#### Response `201 Created`
-
-```json
-{
-  "id": 1,
-  "session": "7b3f4e2a-...",
-  "listening": 7.5,
-  "reading": 8.0,
-  "writing": 7.0,
-  "speaking": 6.5,
-  "score": 7.5,
-  "created_at": "2025-02-19T14:00:00+05:00",
-  "updated_at": "2025-02-19T14:00:00+05:00"
-}
-```
+**Base path:** `/api/v1/work-logs/`  
+**Permission:** `IsAuthenticated`  
+**ViewSet turi:** `ReadOnlyModelViewSet` — faqat o'qish (GET) mumkin, yozish yo'q
 
 ---
 
-#### `PATCH /api/v1/mock/score/{id}/update/`
+### 5.1. Barcha Ish Jurnallari
 
-Mavjud IELTS balini yangilash.
+#### `GET /api/v1/work-logs/`
 
-**Permission:** IsAuthenticated + IsWorkerPermission
-
-#### Request Body (partial)
-
-```json
-{
-  "writing": 7.5,
-  "speaking": 7.0
-}
-```
-
-#### Response `200 OK`
-
-```json
-{
-  "id": 1,
-  "session": "7b3f4e2a-...",
-  "listening": 7.5,
-  "reading": 8.0,
-  "writing": 7.5,
-  "speaking": 7.0,
-  "score": 7.5,
-  "created_at": "...",
-  "updated_at": "2025-02-19T15:00:00+05:00"
-}
-```
-
----
-
-#### `GET /api/v1/mock/score/me/`
-
-Joriy foydalanuvchining barcha IELTS natijalari.
-
-**Permission:** IsAuthenticated
-
-#### Response `200 OK`
-
+**Response `200 OK`:**
 ```json
 [
   {
     "id": 1,
-    "session": "7b3f4e2a-...",
-    "listening": 7.5,
-    "reading": 8.0,
-    "writing": 7.0,
-    "speaking": 6.5,
-    "score": 7.5,
-    "created_at": "..."
+    "employee": 3,
+    "date": "2026-02-20",
+    "status": true,
+    "note": null,
+    "created_at": "2026-02-20T08:00:00Z"
+  },
+  {
+    "id": 2,
+    "employee": 4,
+    "date": "2026-02-20",
+    "status": false,
+    "note": null,
+    "created_at": "2026-02-20T08:00:00Z"
   }
 ]
 ```
 
----
-
-## 19. Umumiy Xato Javoblari
-
-| HTTP Status | Sabab                                    | Misol Response                                    |
-|-------------|------------------------------------------|---------------------------------------------------|
-| `400`       | Noto'g'ri so'rov ma'lumotlari            | `{"field": ["This field is required."]}`          |
-| `401`       | Token yo'q yoki noto'g'ri               | `{"detail": "Authentication credentials were not provided."}` |
-| `403`       | Ruxsat yo'q                              | `{"detail": "You do not have permission to perform this action."}` |
-| `404`       | Ob'ekt topilmadi                         | `{"detail": "Not found."}`                        |
-| `405`       | Metod ruxsat etilmagan                   | `{"detail": "Method \"DELETE\" not allowed."}`    |
+**`status` maydoni:**
+| Qiymat | Ma'nosi |
+|--------|---------|
+| `true` | Xodim bugun ishga keldi |
+| `false` | Xodim bugun ishga kelmadi |
 
 ---
 
-## Qo'shimcha Ma'lumotlar
+### 5.2. Ish Jurnali Tafsilotlari
 
-### Fayl Yuklash
+#### `GET /api/v1/work-logs/{id}/`
 
-- Maksimal fayl hajmi: **300 MB** (`DATA_UPLOAD_MAX_MEMORY_SIZE`)
-- Rasm/hujjat URL'lari to'liq absolut URL formatida qaytariladi: `http://example.com/media/...`
-
-### Token Yangilash
-
-JWT tokeni eskirganda (1 kundan keyin) refresh token orqali yangi access token olish:
-
-```
-POST /api/token/refresh/
-Content-Type: application/json
-
+**Response `200 OK`:**
+```json
 {
-  "refresh": "<refresh_token>"
+  "id": 1,
+  "employee": 3,
+  "date": "2026-02-20",
+  "status": true,
+  "note": null,
+  "created_at": "2026-02-20T08:00:00Z"
 }
 ```
 
-> Response: `{"access": "<yangi_access_token>"}`
+---
 
-### Vaqt Formati
+### WorkLog Ishlash Logikasi
 
-Barcha vaqtlar **ISO 8601** formatida, **Asia/Tashkent** (UTC+5) zone bilan qaytariladi:
+WorkLog yozuvlari **avtomatik** yaratiladi va yangilanadi — to'g'ridan-to'g'ri API orqali yozish imkoni yo'q.
+
+#### Avtomatik yangilanish (signal/helper)
+
+Xodim (employee) attestatsiya (`Attendance`) yoki baho (`Score`) yozganda `log_employee_work()` funksiyasi chaqiriladi:
 
 ```
-2025-02-19T10:30:00+05:00
+WorkLog.status = True  ←→  (bugun attendance yozgan) AND (bugun score bergan)
+WorkLog.status = False ←→  ikkisidan biri ham yo'q
 ```
 
-### CORS
+#### Kunlik Celery Task — `daily_worklog_initialization`
 
-Frontend har qanday origindan so'rov yuborishi mumkin (`CORS_ALLOW_ALL_ORIGINS = True`). Credentials ham qo'llab-quvvatlanadi.
+Har kuni barcha xodimlar uchun `status = False` holida WorkLog yozuvi yaratiladi (`get_or_create` orqali). Bu task Celery beat orqali har kuni ishga tushadi.
+
+#### Qoida:
+1. Ertalab Celery task barcha xodimlarga `False` holida yozuv ochadi
+2. Xodim kun davomida ham davomat olib, ham baho bersa — `status = True` bo'ladi
+3. Ikkalasidan biri bo'lmasa — `status = False` bo'lib qoladi
 
 ---
 
-*© 2025 MEA (Harry-Potter Academy). API v1.0 — Barcha huquqlar himoyalangan.*
+### Dashboard bilan Bog'liqligi
+
+`GET /api/v1/dashboard/` endpointi WorkLog ma'lumotlaridan foydalanadi:
+
+```json
+{
+  "attendance": {
+    "employees_present_today": 5,
+    "total_employees": 8
+  }
+}
+```
+Bu yerda `employees_present_today` — bugungi sana bo'yicha `status = True` bo'lgan WorkLog yozuvlari soni.
+
+---
+
+---
+
+## 6. Model Sxemalari
+
+### Exam
+
+| Maydon | Tur | Tavsif |
+|--------|-----|--------|
+| `id` | int | Auto ID |
+| `title` | string | Imtihon nomi |
+| `code` | string (unique, 6 belgi) | Unikal imtihon kodi (avtogeneratsia) |
+| `subject` | FK → Subject | Fan |
+| `description` | text? | Tavsif |
+| `time_limit` | int | Vaqt chegarasi (daqiqada), 0 = cheksiz |
+| `is_published` | bool | `true` = o'quvchilar ko'ra oladi |
+| `is_active` | bool | `true` = topshirish mumkin |
+| `date` | date | Imtihon sanasi |
+| `created_by` | FK → User | Yaratgan foydalanuvchi (auto) |
+| `created_at` | datetime | Yaratilgan vaqt |
+
+### Question
+
+| Maydon | Tur | Tavsif |
+|--------|-----|--------|
+| `id` | int | Auto ID |
+| `exam` | FK → Exam | Tegishli imtihon |
+| `text` | text | Savol matni |
+| `type` | enum: `test` / `written` | Savol turi |
+| `written_answer_sample` | text? | Namunaviy to'g'ri javob (yozma savollar uchun) |
+| `order` | int | Tartib raqami |
+| `created_at` | datetime | Yaratilgan vaqt |
+
+### Option
+
+| Maydon | Tur | Tavsif |
+|--------|-----|--------|
+| `id` | int | Auto ID |
+| `question` | FK → Question | Tegishli savol |
+| `text` | string | Variant matni |
+| `is_correct` | bool | To'g'ri javob belgisi |
+| `order` | int | Tartib raqami |
+
+### ExamResult
+
+| Maydon | Tur | Tavsif |
+|--------|-----|--------|
+| `id` | int | Auto ID |
+| `exam` | FK → Exam | Imtihon |
+| `student` | FK → User | O'quvchi |
+| `score` | float | Foiz natija (0–100) |
+| `correct_answers` | int | To'g'ri javoblar soni |
+| `total_questions` | int | Jami savollar soni |
+| `is_checked` | bool | O'qituvchi tekshirdimi (yozma savollar uchun) |
+| `checked_by` | FK → User? | Tekshirgan o'qituvchi |
+| `created_at` | datetime | Topshirilgan vaqt |
+
+> `unique_together`: (`exam`, `student`) — bir o'quvchi bir imtihonni bir marta topshira oladi
+
+### ExamAnswer
+
+| Maydon | Tur | Tavsif |
+|--------|-----|--------|
+| `id` | int | Auto ID |
+| `exam_result` | FK → ExamResult | Tegishli natija |
+| `question` | FK → Question | Savol |
+| `option` | FK → Option? | Tanlangan variant (test uchun) |
+| `written_answer` | text? | Yozma javob (written uchun) |
+| `is_correct` | bool | To'g'rilik belgisi |
+
+### WorkLog
+
+| Maydon | Tur | Tavsif |
+|--------|-----|--------|
+| `id` | int | Auto ID |
+| `employee` | FK → User | Xodim (role=employee) |
+| `date` | date | Kun |
+| `status` | bool | `true` = ishga keldi |
+| `note` | text? | Izoh |
+| `created_at` | datetime | Yozuv yaratilgan vaqt |
+
+> `unique_together`: (`employee`, `date`) — bir xodim uchun bir kunda faqat bitta yozuv
+
+### Message
+
+| Maydon | Tur | Tavsif |
+|--------|-----|--------|
+| `id` | int | Auto ID |
+| `text` | text | Xabar matni (HTML qo'llab-quvvatlanadi) |
+| `recipients` | M2M → User | Qabul qiluvchi o'quvchilar |
+| `sent_by` | FK → User | Yuborgan foydalanuvchi (auto) |
+| `created_at` | datetime | Yaratilgan vaqt |
+
+### MessageLog
+
+| Maydon | Tur | Tavsif |
+|--------|-----|--------|
+| `id` | int | Auto ID |
+| `message` | FK → Message | Tegishli xabar |
+| `recipient` | FK → User | Qabul qiluvchi |
+| `status` | enum: `pending`/`sent`/`failed` | Yuborish holati |
+| `error` | text? | Xatolik sababi |
+| `sent_at` | datetime? | Muvaffaqiyatli yuborilgan vaqt |
+
+---
+
+---
+
+## Qisqacha URL Jadvali
+
+### Exams (`/api/v1/exams/`)
+
+| Method | URL | Tavsif |
+|--------|-----|--------|
+| `GET` | `/api/v1/exams/` | Barcha imtihonlar ro'yxati |
+| `POST` | `/api/v1/exams/` | Yangi imtihon yaratish (savollar bilan) |
+| `GET` | `/api/v1/exams/{id}/` | Imtihon tafsilotlari (savollar bilan) |
+| `PUT` | `/api/v1/exams/{id}/` | Imtihonni to'liq yangilash |
+| `PATCH` | `/api/v1/exams/{id}/` | Imtihonni qisman yangilash |
+| `DELETE` | `/api/v1/exams/{id}/` | Imtihonni o'chirish |
+| `POST` | `/api/v1/exams/enter-code/` | Kod orqali imtihon topish |
+| `POST` | `/api/v1/exams/{id}/publish/` | Imtihonni nashr etish |
+| `POST` | `/api/v1/exams/{id}/unpublish/` | Nashrdan olish |
+| `POST` | `/api/v1/exams/{id}/copy/` | Imtihonni nusxalash |
+| `POST` | `/api/v1/exams/{id}/submit/` | Imtihonni topshirish |
+
+### Exam Results (`/api/v1/exam-results/`)
+
+| Method | URL | Tavsif |
+|--------|-----|--------|
+| `GET` | `/api/v1/exam-results/` | Barcha natijalar (role bo'yicha filtr) |
+| `POST` | `/api/v1/exam-results/` | Natija qo'lda yaratish |
+| `GET` | `/api/v1/exam-results/{id}/` | Natija tafsilotlari |
+| `PUT` | `/api/v1/exam-results/{id}/` | Natijani to'liq yangilash |
+| `PATCH` | `/api/v1/exam-results/{id}/` | Natijani qisman yangilash (tekshirish) |
+| `DELETE` | `/api/v1/exam-results/{id}/` | Natijani o'chirish |
+| `GET` | `/api/v1/exam-results/my-results/` | Faqat o'z natijalari |
+
+### Messages (`/api/v1/messages/`)
+
+| Method | URL | Tavsif |
+|--------|-----|--------|
+| `GET` | `/api/v1/messages/` | Barcha xabarlar (logs bilan) |
+| `POST` | `/api/v1/messages/` | Xabar yaratish + Telegram yuborish |
+| `GET` | `/api/v1/messages/{id}/` | Xabar tafsilotlari |
+| `PUT` | `/api/v1/messages/{id}/` | Xabarni to'liq yangilash |
+| `PATCH` | `/api/v1/messages/{id}/` | Xabarni qisman yangilash |
+| `DELETE` | `/api/v1/messages/{id}/` | Xabarni o'chirish |
+
+### Work Logs (`/api/v1/work-logs/`)
+
+| Method | URL | Tavsif |
+|--------|-----|--------|
+| `GET` | `/api/v1/work-logs/` | Barcha ish jurnallari |
+| `GET` | `/api/v1/work-logs/{id}/` | Ish jurnali tafsilotlari |
+
+> Work Logs faqat **o'qish** uchun. Yozish, yangilash, o'chirish mavjud emas.
+
+---
+
+*Dokumentatsiya yaratilgan: 2026-02-20 | HPA Backend v1.0*

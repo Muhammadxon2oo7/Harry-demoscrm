@@ -139,6 +139,7 @@ function StaffCreateTestPageContent() {
         description: description || undefined,
         time_limit: timeLimit ? parseInt(timeLimit) : undefined,
         is_published: publish,
+        is_active: true,
         date: new Date().toISOString().slice(0, 10),
         questions: toApiQuestions(questions),
       };
