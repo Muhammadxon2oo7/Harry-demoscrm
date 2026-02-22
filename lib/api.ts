@@ -263,7 +263,6 @@ export interface DashboardData {
 export interface ExamOption {
   id: number;
   text: string;
-  is_correct: boolean;
   order?: number;
 }
 
@@ -309,7 +308,6 @@ export interface ExamAnswer {
   option_text: string | null;
   written_answer: string | null;
   earned_score: number;
-  is_correct: boolean;
   comment: string | null;
 }
 
@@ -608,7 +606,7 @@ export interface ExamQuestionInput {
   text: string;
   type: "test" | "written";
   order?: number;
-  options?: { text: string; is_correct: boolean; order?: number }[];
+  options?: { text: string; order?: number }[];
   written_answer_sample?: string;
 }
 
