@@ -24,9 +24,9 @@ import {
   BookOpen,
   Clock,
   Calendar,
-  User,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -59,6 +59,7 @@ export default function AdminSubjectsPage() {
   const [staff, setStaff] = useState<UserProfile[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedSubjectId, setExpandedSubjectId] = useState<number | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -154,6 +155,11 @@ export default function AdminSubjectsPage() {
     );
   };
 
+  const openAddGroupForSubject = (subjectId: number) => {
+    setSelectedSubject(String(subjectId));
+    setShowAddGroup(true);
+  };
+
   const handleAddGroup = async () => {
     if (!groupName.trim() || !selectedSubject || selectedDays.length === 0 || !groupStartTime || !groupEndTime) {
       showMessage("error", "Barcha majburiy maydonlarni to'ldiring");
@@ -163,6 +169,7 @@ export default function AdminSubjectsPage() {
       await groupsApi.create({
         name: groupName,
         subject: Number(selectedSubject),
+        teacher: selectedTeacher ? Number(selectedTeacher) : null,
         days: selectedDays.join(","),
         start_time: groupStartTime + ":00",
         end_time: groupEndTime + ":00",
@@ -186,6 +193,7 @@ export default function AdminSubjectsPage() {
       await groupsApi.patch(editingGroup.id, {
         name: groupName,
         subject: Number(selectedSubject),
+        teacher: selectedTeacher ? Number(selectedTeacher) : null,
         days: selectedDays.join(","),
         start_time: groupStartTime + ":00",
         end_time: groupEndTime + ":00",
@@ -203,6 +211,7 @@ export default function AdminSubjectsPage() {
     setEditingGroup(group);
     setGroupName(group.name);
     setSelectedSubject(String(group.subject));
+    setSelectedTeacher(group.teacher ? String(group.teacher) : "");
     setSelectedDays(group.days ? group.days.split(",") : []);
     setGroupStartTime(group.start_time?.slice(0, 5) ?? "");
     setGroupEndTime(group.end_time?.slice(0, 5) ?? "");
@@ -252,162 +261,156 @@ export default function AdminSubjectsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
-            <BookOpen className="w-6 h-6 md:w-8 md:h-8 text-primary" />
-            Fanlar va Guruhlar
-          </h1>
+          <h1 className="text-2xl md:text-3xl font-bold">Fanlar</h1>
           <p className="text-sm md:text-base text-muted-foreground mt-1">
-            O'quv fanlar va guruhlar boshqaruvi
+            Fanni bosing — unga tegishli guruhlar ko&apos;rinadi
           </p>
         </div>
+        <Button onClick={() => setShowAddSubject(true)}>
+          <Plus className="w-4 h-4 mr-2" />
+          Fan qo&apos;shish
+        </Button>
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[...Array(6)].map((_, i) => (
-            <Card key={i} className="p-5 h-40 animate-pulse bg-muted/30" />
+        <div className="space-y-3">
+          {[...Array(4)].map((_, i) => (
+            <Card key={i} className="p-5 h-16 animate-pulse bg-muted/30" />
           ))}
         </div>
+      ) : subjects.length === 0 ? (
+        <Card className="p-12 text-center">
+          <BookOpen className="w-12 h-12 mx-auto text-muted-foreground mb-3 opacity-40" />
+          <p className="font-medium text-muted-foreground">Fan mavjud emas</p>
+          <Button className="mt-4" onClick={() => setShowAddSubject(true)}>
+            <Plus className="w-4 h-4 mr-2" />Fan qo&apos;shish
+          </Button>
+        </Card>
       ) : (
-        <Tabs defaultValue="subjects" className="w-full">
-          <TabsList className="grid w-full md:w-100 grid-cols-2">
-            <TabsTrigger value="subjects">Fanlar</TabsTrigger>
-            <TabsTrigger value="groups">Guruhlar</TabsTrigger>
-          </TabsList>
-
-          {/* Subjects Tab */}
-          <TabsContent value="subjects" className="space-y-4 mt-6">
-            <div className="flex justify-between items-center">
-              <p className="text-sm text-muted-foreground">
-                {subjects.length} ta fan
-              </p>
-              <Button onClick={() => setShowAddSubject(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Fan qo'shish
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {subjects.map((subject) => (
-                <Card key={subject.id} className="p-5 hover:shadow-md transition">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-                      <BookOpen className="w-6 h-6 text-primary" />
-                    </div>
-                    <div className="flex gap-1">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8"
-                        onClick={() => openEditSubject(subject)}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8 text-destructive"
-                        onClick={() =>
-                          setDeleteModal({ open: true, type: "subject", id: String(subject.id) })
-                        }
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  <h3 className="font-bold text-lg mb-2">{subject.name}</h3>
-                  <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
-                    {subject.created_at ? fmtDate(subject.created_at) : "—"}
-                  </p>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Users className="w-4 h-4" />
-                    <span>{groups.filter((g) => g.subject === subject.id).length} ta guruh</span>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-
-          {/* Groups Tab */}
-          <TabsContent value="groups" className="space-y-4 mt-6">
-            <div className="flex justify-between items-center">
-              <p className="text-sm text-muted-foreground">
-                {groups.length} ta guruh
-              </p>
-              <Button onClick={() => setShowAddGroup(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Guruh qo'shish
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {groups.map((group) => (
-                <Card
-                  key={group.id}
-                  className="p-5 hover:shadow-md transition cursor-pointer group"
-                  onClick={() => router.push(`/admin/subjects/group/${group.id}`)}
+        <div className="space-y-3">
+          {subjects.map((subject) => {
+            const subjectGroups = groups.filter((g) => g.subject === subject.id);
+            const expanded = expandedSubjectId === subject.id;
+            return (
+              <Card key={subject.id} className="overflow-hidden">
+                {/* Subject header row */}
+                <button
+                  className="w-full px-5 py-4 flex items-center justify-between gap-3 hover:bg-muted/30 transition-colors text-left"
+                  onClick={() => setExpandedSubjectId(expanded ? null : subject.id)}
                 >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="w-12 h-12 bg-blue-500/10 rounded-lg flex items-center justify-center">
-                      <Users className="w-6 h-6 text-blue-600" />
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                      <BookOpen className="w-4 h-4 text-primary" />
                     </div>
-                    <div className="flex gap-1">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openEditGroup(group);
-                        }}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeleteModal({ open: true, type: "group", id: String(group.id) });
-                        }}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold truncate">{subject.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {subject.created_at ? fmtDate(subject.created_at) : "—"} · {subjectGroups.length} ta guruh
+                      </p>
                     </div>
                   </div>
-                  <h3 className="font-bold text-lg mb-1">{group.name}</h3>
-                  <Badge variant="secondary" className="mb-3">
-                    {group.subject_name}
-                  </Badge>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Calendar className="w-4 h-4" />
-                      <div className="flex gap-1 flex-wrap">
-                        {(group.days || "").split(",").filter(Boolean).map((day) => (
-                          <span
-                            key={day}
-                            className="px-2 py-0.5 bg-muted rounded text-xs"
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      onClick={(e) => { e.stopPropagation(); openEditSubject(subject); }}
+                    >
+                      <Edit className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteModal({ open: true, type: "subject", id: String(subject.id) });
+                      }}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                    {expanded
+                      ? <ChevronUp className="w-4 h-4 text-muted-foreground ml-1" />
+                      : <ChevronDown className="w-4 h-4 text-muted-foreground ml-1" />}
+                  </div>
+                </button>
+
+                {/* Expanded: groups */}
+                {expanded && (
+                  <div className="border-t bg-muted/10 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-muted-foreground">{subjectGroups.length} ta guruh</p>
+                      <Button size="sm" onClick={() => openAddGroupForSubject(subject.id)}>
+                        <Plus className="w-3.5 h-3.5 mr-1" />Guruh qo&apos;shish
+                      </Button>
+                    </div>
+
+                    {subjectGroups.length === 0 ? (
+                      <p className="text-sm text-muted-foreground py-4 text-center">
+                        Bu fanga guruh qo&apos;shilmagan
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {subjectGroups.map((group) => (
+                          <Card
+                            key={group.id}
+                            className="p-4 hover:shadow-md transition cursor-pointer group/card"
+                            onClick={() => router.push(`/admin/subjects/group/${group.id}`)}
                           >
-                            {weekDays.find((d) => d.value === day.trim())?.icon ?? day}
-                          </span>
+                            <div className="flex items-start justify-between mb-2">
+                              <h3 className="font-semibold">{group.name}</h3>
+                              <div className="flex gap-1 opacity-0 group-hover/card:opacity-100 transition">
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7"
+                                  onClick={(e) => { e.stopPropagation(); openEditGroup(group); }}
+                                >
+                                  <Edit className="w-3 h-3" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 text-destructive"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteModal({ open: true, type: "group", id: String(group.id) });
+                                  }}
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="space-y-1.5 text-sm text-muted-foreground">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="w-3.5 h-3.5 shrink-0" />
+                                <div className="flex gap-1 flex-wrap">
+                                  {(group.days || "").split(",").filter(Boolean).map((day) => (
+                                    <span key={day} className="px-1.5 py-0.5 bg-muted rounded text-xs">
+                                      {weekDays.find((d) => d.value === day.trim())?.icon ?? day}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Clock className="w-3.5 h-3.5 shrink-0" />
+                                <span>{group.start_time?.slice(0, 5)} – {group.end_time?.slice(0, 5)}</span>
+                              </div>
+                              <div className="flex items-center gap-2 pt-1 border-t">
+                                <Users className="w-3.5 h-3.5 shrink-0" />
+                                <span>{group.students_count} ta o&apos;quvchi</span>
+                              </div>
+                            </div>
+                          </Card>
                         ))}
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Clock className="w-4 h-4" />
-                      <span>{group.start_time?.slice(0, 5)} - {group.end_time?.slice(0, 5)}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-muted-foreground pt-1 border-t">
-                      <Users className="w-4 h-4" />
-                      <span>{group.students_count} ta o'quvchi</span>
-                    </div>
+                    )}
                   </div>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-        </Tabs>
+                )}
+              </Card>
+            );
+          })}
+        </div>
       )}
 
       {/* Add/Edit Subject Modal */}

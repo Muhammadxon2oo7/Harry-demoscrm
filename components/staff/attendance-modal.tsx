@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { X, Check, Clock, AlertCircle, UserCheck, CalendarIcon, List } from "lucide-react";
 import { format, isBefore, isAfter, startOfDay } from "date-fns";
 import { attendanceApi, type AttendanceRecord } from "@/lib/api";
+import { toast } from "@/lib/toast";
 
 interface Props {
   groupId: number;
@@ -33,19 +34,19 @@ export function AttendanceModal({ groupId, isOpen, onClose }: Props) {
 
   useEffect(() => {
     if (isOpen) {
-      loadAttendance();
+      loadAttendance(formattedDate);
     }
   }, [selectedDate, isOpen]);
   useEffect(() => {
   setActiveTab("list");
 }, [selectedDate]);
 
-  const loadAttendance = async () => {
+  const loadAttendance = async (date: string) => {
     setLoading(true);
     try {
       const all = await attendanceApi.list();
       const data = all.filter(
-        (a) => (typeof a.group === "object" ? a.group.id : a.group) === groupId && a.date === formattedDate
+        (a) => (typeof a.group === "object" ? a.group.id : a.group) === groupId && a.date === date
       );
       setAttendances(data);
     } catch (err) {
@@ -63,7 +64,7 @@ export function AttendanceModal({ groupId, isOpen, onClose }: Props) {
       const filtered = data.filter((a) => a.date === formattedDate);
       setAttendances(filtered);
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     } finally {
       setLoading(false);
     }
@@ -81,7 +82,7 @@ export function AttendanceModal({ groupId, isOpen, onClose }: Props) {
         prev.map((a) => (a.id === updated.id ? updated : a))
       );
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     } finally {
       setUpdating(null);
     }

@@ -75,7 +75,7 @@ export default function StaffDashboard() {
           <Card className="p-4 md:p-6 animate-in fade-in slide-in-from-bottom duration-300" style={{ animationDelay: "0ms" }}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs md:text-sm text-muted-foreground">Mening guruhlarim</p>
+                <p className="text-xs md:text-sm text-muted-foreground">Barcha guruhlar</p>
                 <h3 className="text-2xl md:text-3xl font-bold mt-2 text-primary">{myGroups.length}</h3>
               </div>
               <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
@@ -125,7 +125,11 @@ export default function StaffDashboard() {
         ) : todayClasses.length > 0 ? (
           <div className="space-y-4">
             {todayClasses.map((group) => (
-              <div key={group.id} className="flex items-center justify-between border-b pb-3 last:border-0">
+              <div
+                key={group.id}
+                onClick={() => router.push(`/staff/${group.id}`)}
+                className="flex items-center justify-between border-b pb-3 last:border-0 cursor-pointer hover:bg-muted/30 rounded-lg px-2 -mx-2 transition-colors"
+              >
                 <div>
                   <h3 className="font-semibold">{group.name}</h3>
                   <p className="text-sm text-muted-foreground">{group.subject_name}</p>
@@ -142,53 +146,6 @@ export default function StaffDashboard() {
         )}
       </Card>
 
-      {/* All My Groups */}
-      <Card className="p-6">
-        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-          <BookOpen className="w-5 h-5" />
-          Barcha guruhlarim
-        </h2>
-        {loading ? (
-          <div className="space-y-3">
-            {[...Array(2)].map((_, i) => (
-              <div key={i} className="h-24 animate-pulse bg-muted/30 rounded-lg" />
-            ))}
-          </div>
-        ) : (
-          <div className="grid gap-4">
-            {myGroups.map((group) => {
-              const days = (group.days || "").split(",").map((d) => dayMap[d.trim()] || d.trim()).join(", ");
-              return (
-                <div
-                  key={group.id}
-                  onClick={() => router.push(`/staff/${group.id}`)}
-                  className="border rounded-lg p-4 hover:shadow-md hover:border-primary/50 transition cursor-pointer"
-                >
-                  <h3 className="font-semibold text-lg">{group.name}</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">Fan:</p>
-                      <p className="font-medium">{group.subject_name}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Dars kunlari:</p>
-                      <p className="font-medium">{days}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Vaqt:</p>
-                      <p className="font-medium">{group.start_time?.slice(0, 5)} - {group.end_time?.slice(0, 5)}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">O'quvchilar:</p>
-                      <p className="font-medium">{group.students_count} ta</p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Card>
     </div>
   );
 }

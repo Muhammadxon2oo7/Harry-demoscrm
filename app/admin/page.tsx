@@ -8,38 +8,24 @@ import {
   GraduationCap,
   DollarSign,
   TrendingUp,
-  Calendar,
   ArrowUpCircle,
+  ArrowDownCircle,
+  BookOpen,
 } from "lucide-react";
-import { motion } from "framer-motion";
 import {
   dashboardApi,
-  studentsApi,
-  workersApi,
-  groupsApi,
   type DashboardData,
 } from "@/lib/api";
 
 export default function AdminDashboard() {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
-  const [counts, setCounts] = useState({ students: 0, workers: 0, groups: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [dash, students, workers, groups] = await Promise.all([
-          dashboardApi.get(),
-          studentsApi.list(),
-          workersApi.list(),
-          groupsApi.list(),
-        ]);
+        const dash = await dashboardApi.get();
         setDashboard(dash);
-        setCounts({
-          students: students.length,
-          workers: workers.length,
-          groups: groups.length,
-        });
       } catch {
         // errors handled by api.ts (401 redirects to login)
       } finally {
@@ -56,9 +42,11 @@ export default function AdminDashboard() {
       minimumFractionDigits: 0,
     }).format(amount);
 
-  const income = dashboard?.finance.income ?? 0;
-  const expense = dashboard?.finance.expense ?? 0;
-  const profit = dashboard?.finance.profit ?? 0;
+  const totalPayments = dashboard?.payments.total ?? 0;
+  const thisMonthPayments = dashboard?.payments.this_month ?? 0;
+  const totalCashouts = dashboard?.cashouts.total ?? 0;
+  const thisMonthCashouts = dashboard?.cashouts.this_month ?? 0;
+  const profit = totalPayments - totalCashouts;
 
   return (
     <div className="space-y-6">
@@ -81,12 +69,12 @@ export default function AdminDashboard() {
         </div>
       ) : (
         <>
-          {/* Stats Cards */}
+          {/* Stats Cards — sourced directly from dashboard API */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
             <MetricItem
               icon={<Users className="w-5 h-5 md:w-6 md:h-6" />}
               label="Jami o'quvchilar"
-              value={counts.students}
+              value={dashboard?.students.total ?? 0}
               color="text-primary"
               bg="bg-primary/10"
               delay={0}
@@ -94,7 +82,7 @@ export default function AdminDashboard() {
             <MetricItem
               icon={<UserCheck className="w-5 h-5 md:w-6 md:h-6" />}
               label="Xodimlar"
-              value={counts.workers}
+              value={dashboard?.workers.total ?? 0}
               color="text-green-600"
               bg="bg-green-100"
               delay={100}
@@ -102,21 +90,19 @@ export default function AdminDashboard() {
             <MetricItem
               icon={<GraduationCap className="w-5 h-5 md:w-6 md:h-6" />}
               label="Guruhlar"
-              value={counts.groups}
+              value={dashboard?.groups.total ?? 0}
               color="text-blue-600"
               bg="bg-blue-100"
               delay={200}
             />
             <MetricItem
-              icon={<DollarSign className="w-5 h-5 md:w-6 md:h-6" />}
-              label="Umumiy daromad"
-              value={formatCurrency(income)}
+              icon={<BookOpen className="w-5 h-5 md:w-6 md:h-6" />}
+              label="Bu oy to'lovlar"
+              value={formatCurrency(thisMonthPayments)}
               subValue={
-                <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                  <Calendar className="w-3 h-3" />
-                  Xodimlar bugun: {dashboard?.attendance.employees_present_today ?? 0} /{" "}
-                  {dashboard?.attendance.total_employees ?? 0}
-                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Chiqim: {formatCurrency(thisMonthCashouts)}
+                </p>
               }
               color="text-yellow-600"
               bg="bg-yellow-100"
@@ -125,10 +111,10 @@ export default function AdminDashboard() {
           </div>
 
           {/* Finance Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6">
             <FinanceCard
-              title="Umumiy kirim"
-              amount={income}
+              title="Jami kirim"
+              amount={totalPayments}
               icon={<DollarSign className="w-5 h-5" />}
               color="text-green-700"
               bg="bg-gradient-to-br from-green-50/80 to-emerald-50/80 backdrop-blur-sm"
@@ -137,8 +123,8 @@ export default function AdminDashboard() {
               formatCurrency={formatCurrency}
             />
             <FinanceCard
-              title="Umumiy chiqim"
-              amount={expense}
+              title="Jami chiqim"
+              amount={totalCashouts}
               icon={<ArrowUpCircle className="w-5 h-5" />}
               color="text-red-700"
               bg="bg-gradient-to-br from-red-50/80 to-rose-50/80 backdrop-blur-sm"
@@ -167,7 +153,7 @@ export default function AdminDashboard() {
                   </p>
                 </div>
                 <div className="w-16 h-16 md:w-20 md:h-20 bg-blue-100 rounded-2xl flex items-center justify-center">
-                  <TrendingUp className="w-8 h-8 md:w-10 md:h-10 text-blue-600" />
+                  <ArrowDownCircle className="w-8 h-8 md:w-10 md:h-10 text-blue-600" />
                 </div>
               </div>
             </div>

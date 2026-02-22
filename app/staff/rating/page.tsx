@@ -9,127 +9,75 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Trophy, Medal, Award } from "lucide-react";
+import { Trophy, Medal, Award, Users, Star } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { groupsApi, studentsApi, scoresApi, attendanceApi, type Group, type UserProfile } from "@/lib/api";
-
-interface GroupRating {
-  id: number;
-  groupName: string;
-  averageScore: number;
-  studentsCount: number;
-}
-
-interface StudentRating {
-  id: number;
-  studentName: string;
-  score: number;
-  attendance: number;
-}
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import {
+  groupsApi,
+  studentsApi,
+  type GroupRating,
+  type StudentRating,
+  type Group,
+} from "@/lib/api";
 
 export default function StaffRatingPage() {
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [selectedGroup, setSelectedGroup] = useState("");
   const [groupRatings, setGroupRatings] = useState<GroupRating[]>([]);
   const [studentRatings, setStudentRatings] = useState<StudentRating[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState("");
+  const [loadingGroups, setLoadingGroups] = useState(true);
+  const [loadingStudents, setLoadingStudents] = useState(false);
 
+  // Load group ratings + groups list
   useEffect(() => {
     async function load() {
       try {
-        const [grps, scores, attendance] = await Promise.all([
+        const [ratings, grps] = await Promise.all([
+          groupsApi.rating(),
           groupsApi.list(),
-          scoresApi.list(),
-          attendanceApi.list(),
         ]);
-        setGroups(grps);
-
-        // Build group ratings
-        const scoresByGroup: Record<number, number[]> = {};
-        scores.forEach((s) => {
-          const gid = typeof s.group === "object" ? s.group.id : (s as unknown as { group: number }).group;
-          if (!scoresByGroup[gid]) scoresByGroup[gid] = [];
-          scoresByGroup[gid].push(s.score);
-        });
-
-        const ratings: GroupRating[] = grps.map((g) => ({
-          id: g.id,
-          groupName: g.name,
-          averageScore: scoresByGroup[g.id]?.length
-            ? Math.round(scoresByGroup[g.id].reduce((a, b) => a + b, 0) / scoresByGroup[g.id].length)
-            : 0,
-          studentsCount: g.students_count,
-        })).sort((a, b) => b.averageScore - a.averageScore);
         setGroupRatings(ratings);
-
+        setGroups(grps);
         if (grps.length > 0) setSelectedGroup(String(grps[0].id));
       } catch (err) {
         console.error(err);
       } finally {
-        setLoading(false);
+        setLoadingGroups(false);
       }
     }
     load();
   }, []);
 
+  // Load student ratings when selected group changes
   useEffect(() => {
     if (!selectedGroup) return;
-    async function loadStudents() {
-      try {
-        const [studs, scores, attendance] = await Promise.all([
-          studentsApi.list(Number(selectedGroup)),
-          scoresApi.list(),
-          attendanceApi.list(),
-        ]);
-
-        const scoreMap: Record<number, number[]> = {};
-        scores.forEach((s) => {
-          const gid = typeof s.group === "object" ? s.group.id : (s as unknown as { group: number }).group;
-          if (String(gid) !== selectedGroup) return;
-          const sid = typeof s.student === "object" ? s.student.id : (s as unknown as { student: number }).student;
-          if (!scoreMap[sid]) scoreMap[sid] = [];
-          scoreMap[sid].push(s.score);
-        });
-
-        const attMap: Record<number, { total: number; present: number }> = {};
-        attendance.forEach((a) => {
-          const gid = typeof a.group === "object" ? a.group.id : (a as unknown as { group: number }).group;
-          if (String(gid) !== selectedGroup) return;
-          const sid = typeof a.student === "object" ? a.student.id : (a as unknown as { student: number }).student;
-          if (!attMap[sid]) attMap[sid] = { total: 0, present: 0 };
-          attMap[sid].total++;
-          if (a.status === "keldi" || a.status === "kechikdi") attMap[sid].present++;
-        });
-
-        const rated: StudentRating[] = studs.map((s) => {
-          const scrs = scoreMap[s.id] || [];
-          const avg = scrs.length ? Math.round(scrs.reduce((a, b) => a + b, 0) / scrs.length) : 0;
-          const att = attMap[s.id];
-          const attPct = att ? Math.round((att.present / att.total) * 100) : 0;
-          return {
-            id: s.id,
-            studentName: `${s.first_name} ${s.last_name}`.trim() || s.username,
-            score: avg,
-            attendance: attPct,
-          };
-        }).sort((a, b) => b.score - a.score);
-
-        setStudentRatings(rated);
-      } catch (err) {
-        console.error(err);
-      }
-    }
-    loadStudents();
+    setLoadingStudents(true);
+    studentsApi
+      .rating(Number(selectedGroup))
+      .then(setStudentRatings)
+      .catch(console.error)
+      .finally(() => setLoadingStudents(false));
   }, [selectedGroup]);
 
+  const maxGroupScore = groupRatings[0]?.total_score || 1;
+  const maxStudentScore = studentRatings[0]?.total_score || 1;
+
   const getRankIcon = (rank: number) => {
-    switch (rank) {
-      case 1: return <Trophy className="w-6 h-6 text-yellow-500" />;
-      case 2: return <Medal className="w-6 h-6 text-gray-400" />;
-      case 3: return <Award className="w-6 h-6 text-amber-600" />;
-      default: return <span className="w-6 h-6 flex items-center justify-center text-sm font-semibold">{rank}</span>;
-    }
+    if (rank === 1) return <Trophy className="w-5 h-5 text-yellow-500" />;
+    if (rank === 2) return <Medal className="w-5 h-5 text-gray-400" />;
+    if (rank === 3) return <Award className="w-5 h-5 text-amber-600" />;
+    return <span className="text-sm font-bold text-muted-foreground">#{rank}</span>;
   };
+
+  const getRankBg = (rank: number) => {
+    if (rank === 1) return "bg-yellow-50 border-yellow-200 dark:bg-yellow-950/20 dark:border-yellow-800";
+    if (rank === 2) return "bg-gray-50 border-gray-200 dark:bg-gray-900/20 dark:border-gray-700";
+    if (rank === 3) return "bg-amber-50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-800";
+    return "bg-card border-border";
+  };
+
+  const selectedGroupName = groups.find((g) => String(g.id) === selectedGroup)?.name || "";
 
   return (
     <div className="space-y-6">
@@ -144,46 +92,68 @@ export default function StaffRatingPage() {
           <TabsTrigger value="students">Guruh reytingi</TabsTrigger>
         </TabsList>
 
-        {/* ALL GROUPS RATING */}
-        <TabsContent value="groups" className="mt-6">
-          <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-4">Barcha guruhlar reytingi</h2>
-            {loading ? (
-              <p className="text-muted-foreground">Yuklanmoqda...</p>
-            ) : (
-              <div className="space-y-4">
-                {groupRatings.map((group, idx) => (
-                  <div key={group.id} className="flex items-center gap-4 border-b pb-4 last:border-0">
-                    <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-                      {getRankIcon(idx + 1)}
+        {/* ── ALL GROUPS RATING ── */}
+        <TabsContent value="groups" className="mt-6 space-y-3">
+          {loadingGroups ? (
+            <div className="space-y-3">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="h-20 rounded-xl bg-muted animate-pulse" />
+              ))}
+            </div>
+          ) : groupRatings.length === 0 ? (
+            <Card className="p-12 text-center">
+              <Star className="w-12 h-12 mx-auto text-muted-foreground/40 mb-3" />
+              <p className="text-muted-foreground">Reyting ma&apos;lumotlari yo&apos;q</p>
+            </Card>
+          ) : (
+            groupRatings.map((group) => (
+              <Card key={group.id} className={`p-5 border ${getRankBg(group.rank)}`}>
+                <div className="flex items-center gap-4">
+                  <div className="w-11 h-11 rounded-full bg-background border flex items-center justify-center shrink-0">
+                    {getRankIcon(group.rank)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <h3 className="font-semibold">{group.name}</h3>
+                      {group.subject_name && (
+                        <Badge variant="secondary" className="text-xs">
+                          {group.subject_name}
+                        </Badge>
+                      )}
                     </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold">{group.groupName}</h3>
-                      <p className="text-sm text-muted-foreground">{group.studentsCount} ta o&apos;quvchi</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-2xl font-bold text-primary">{group.averageScore}</p>
-                      <p className="text-sm text-muted-foreground">O&apos;rtacha ball</p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Progress value={(group.total_score / maxGroupScore) * 100} className="h-2 flex-1" />
+                      <span className="text-sm text-muted-foreground whitespace-nowrap">
+                        {group.total_score} ball
+                      </span>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </Card>
+                  <div className="text-right shrink-0">
+                    <p className="text-2xl font-bold text-primary">{group.total_score}</p>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground justify-end mt-0.5">
+                      <Users className="w-3 h-3" />
+                      {group.students_count} ta
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            ))
+          )}
         </TabsContent>
 
-        {/* STUDENTS IN GROUP RATING */}
-        <TabsContent value="students" className="mt-6">
-          <Card className="p-4 mb-6">
+        {/* ── STUDENTS IN GROUP RATING ── */}
+        <TabsContent value="students" className="mt-6 space-y-4">
+          <Card className="p-4">
             <label className="text-sm font-medium mb-2 block">Guruhni tanlang</label>
             <Select value={selectedGroup} onValueChange={setSelectedGroup}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {groups.map((group) => (
-                  <SelectItem key={group.id} value={String(group.id)}>
-                    {group.name}
+                {groups.map((g) => (
+                  <SelectItem key={g.id} value={String(g.id)}>
+                    {g.name}
+                    {g.subject_name ? ` — ${g.subject_name}` : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -191,32 +161,50 @@ export default function StaffRatingPage() {
           </Card>
 
           <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-4">
-              {groups.find((g) => String(g.id) === selectedGroup)?.name} — O&apos;quvchilar reytingi
-            </h2>
-            {studentRatings.length === 0 ? (
-              <p className="text-muted-foreground">Ma&apos;lumotlar yo&apos;q</p>
+            {selectedGroupName && (
+              <h2 className="text-lg font-semibold mb-4">
+                {selectedGroupName} — O&apos;quvchilar reytingi
+              </h2>
+            )}
+            {loadingStudents ? (
+              <div className="space-y-3">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="h-16 rounded-lg bg-muted animate-pulse" />
+                ))}
+              </div>
+            ) : studentRatings.length === 0 ? (
+              <div className="text-center py-10">
+                <Star className="w-10 h-10 mx-auto text-muted-foreground/40 mb-3" />
+                <p className="text-muted-foreground">Bu guruhda reyting ma&apos;lumotlari yo&apos;q</p>
+              </div>
             ) : (
-              <div className="space-y-4">
-                {studentRatings.map((student, idx) => (
-                  <div key={student.id} className="flex items-center justify-between border-b pb-4 last:border-0">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                        {getRankIcon(idx + 1)}
-                      </div>
-                      <div>
-                        <h4 className="font-semibold">{student.studentName}</h4>
+              <div className="space-y-3">
+                {studentRatings.map((student) => (
+                  <div
+                    key={student.id}
+                    className={`flex items-center gap-4 p-3 rounded-lg border ${getRankBg(student.rank)}`}
+                  >
+                    <div className="w-10 h-10 rounded-full bg-background border flex items-center justify-center shrink-0">
+                      {getRankIcon(student.rank)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold truncate">
+                        {student.first_name || student.last_name
+                          ? `${student.first_name} ${student.last_name}`.trim()
+                          : student.username}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <Progress
+                          value={(student.total_score / maxStudentScore) * 100}
+                          className="h-1.5 flex-1"
+                        />
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          {student.total_score} ball
+                        </span>
                       </div>
                     </div>
-                    <div className="flex gap-8 text-sm">
-                      <div className="text-center">
-                        <p className="text-muted-foreground">Ball</p>
-                        <p className="text-lg font-semibold text-primary">{student.score}</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-muted-foreground">Davomat</p>
-                        <p className="text-lg font-semibold text-green-600">{student.attendance}%</p>
-                      </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-xl font-bold text-primary">{student.total_score}</p>
                     </div>
                   </div>
                 ))}

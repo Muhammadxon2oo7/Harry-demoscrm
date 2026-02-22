@@ -13,6 +13,7 @@ import {
   Menu,
   UserCircle2,
   FileText,
+  MessageSquare,
 } from "lucide-react";
 import { useState } from "react";
 import Image from "next/image";
@@ -29,6 +30,7 @@ export function AdminSidebar() {
     { href: "/admin/finance", label: "Moliya", icon: DollarSign },
     { href: "/admin/subjects", label: "Fanlar va Guruhlar", icon: BookOpen },
     { href: "/admin/tests", label: "Testlar", icon: FileText },
+    { href: "/admin/messages", label: "Xabarlar", icon: MessageSquare },
     { href: "/admin/rating", label: "Reyting", icon: Trophy },
   ];
 

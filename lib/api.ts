@@ -9,13 +9,23 @@
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const BASE_URL =
+const API_ROOT =
   process.env.NEXT_PUBLIC_API_BASE_URL ||
-  "https://api.harry-potter.uz/api/v1";
+  "https://www.harry-potter.uz/api/v1";
+
+// Section-specific base URLs matching the documented API structure
+const ACCOUNTS_URL = `${API_ROOT}/accounts`;
+const EDUCATION_URL = `${API_ROOT}/education`;
+const EXAMS_URL = `${API_ROOT}/exams`;
+const FINANCE_URL = `${API_ROOT}/finance`;
+
+// Legacy alias — kept so existing call-sites that use BASE_URL still compile.
+// New code should prefer the section-specific constants above.
+const BASE_URL = API_ROOT;
 
 const MOCK_BASE_URL =
   process.env.NEXT_PUBLIC_MOCK_API_BASE_URL ||
-  "https://api.harry-potter.uz/api/v1/mock";
+  "https://www.harry-potter.uz/api/v1/mock";
 
 // ─── Token Helpers ─────────────────────────────────────────────────────────────
 
@@ -140,6 +150,8 @@ export interface Group {
   description: string;
   subject: number;
   subject_name: string;
+  teacher: number | null;
+  teacher_name: string | null;
   is_active: boolean;
   days: string;
   start_time: string;
@@ -148,6 +160,15 @@ export interface Group {
   homework_count: number;
   group_total_score: number;
   created_at: string;
+}
+
+export interface GroupRating {
+  id: number;
+  name: string;
+  subject_name: string;
+  total_score: number;
+  rank: number;
+  students_count: number;
 }
 
 export interface UserProfile {
@@ -232,8 +253,11 @@ export interface ExpenseRecord {
 }
 
 export interface DashboardData {
-  finance: { income: number; expense: number; profit: number };
-  attendance: { employees_present_today: number; total_employees: number };
+  students: { total: number };
+  workers: { total: number };
+  groups: { total: number };
+  payments: { total: number; this_month: number };
+  cashouts: { total: number; this_month: number };
 }
 
 export interface ExamOption {
@@ -278,13 +302,15 @@ export interface ExamSubmitAnswer {
 
 export interface ExamAnswer {
   id: number;
-  exam_result: number;
+  exam_result?: number;
   question: number;
   question_text: string;
   option: number | null;
   option_text: string | null;
   written_answer: string | null;
+  earned_score: number;
   is_correct: boolean;
+  comment: string | null;
 }
 
 export interface ExamResultRecord {
@@ -379,23 +405,23 @@ export interface TestSession {
 
 export const authApi = {
   login: (username: string, password: string) =>
-    api.post<LoginResponse>(`${BASE_URL}/login/`, { username, password }),
+    api.post<LoginResponse>(`${ACCOUNTS_URL}/login/`, { username, password }),
 };
 
-// ─── Dashboard ─────────────────────────────────────────────────────────────────
+// ─── Dashboard ─────────────────────────────────────────────────────
 
 export const dashboardApi = {
-  get: () => api.get<DashboardData>(`${BASE_URL}/dashboard/`),
+  get: () => api.get<DashboardData>(`${ACCOUNTS_URL}/dashboard/`),
 };
 
-// ─── Subjects ─────────────────────────────────────────────────────────────────
+// ─── Subjects ─────────────────────────────────────────────────────
 
 export const subjectsApi = {
-  list: () => api.get<Subject[]>(`${BASE_URL}/subjects/`),
-  get: (id: number) => api.get<Subject>(`${BASE_URL}/subjects/${id}/`),
-  create: (name: string) => api.post<Subject>(`${BASE_URL}/subjects/`, { name }),
-  update: (id: number, name: string) => api.put<Subject>(`${BASE_URL}/subjects/${id}/`, { name }),
-  delete: (id: number) => api.delete<void>(`${BASE_URL}/subjects/${id}/`),
+  list: () => api.get<Subject[]>(`${EDUCATION_URL}/subjects/`),
+  get: (id: number) => api.get<Subject>(`${EDUCATION_URL}/subjects/${id}/`),
+  create: (name: string) => api.post<Subject>(`${EDUCATION_URL}/subjects/`, { name }),
+  update: (id: number, name: string) => api.put<Subject>(`${EDUCATION_URL}/subjects/${id}/`, { name }),
+  delete: (id: number) => api.delete<void>(`${EDUCATION_URL}/subjects/${id}/`),
 };
 
 // ─── Groups ────────────────────────────────────────────────────────────────────
@@ -404,6 +430,7 @@ export interface GroupCreateInput {
   name: string;
   description?: string;
   subject: number;
+  teacher?: number | null;
   is_active?: boolean;
   days: string;
   start_time: string;
@@ -411,15 +438,15 @@ export interface GroupCreateInput {
 }
 
 export const groupsApi = {
-  list: () => api.get<Group[]>(`${BASE_URL}/groups/`),
-  get: (id: number) => api.get<Group>(`${BASE_URL}/groups/${id}/`),
-  create: (data: GroupCreateInput) => api.post<Group>(`${BASE_URL}/groups/`, data),
+  list: () => api.get<Group[]>(`${EDUCATION_URL}/groups/`),
+  get: (id: number) => api.get<Group>(`${EDUCATION_URL}/groups/${id}/`),
+  create: (data: GroupCreateInput) => api.post<Group>(`${EDUCATION_URL}/groups/`, data),
   update: (id: number, data: Partial<GroupCreateInput>) =>
-    api.put<Group>(`${BASE_URL}/groups/${id}/`, data),
+    api.put<Group>(`${EDUCATION_URL}/groups/${id}/`, data),
   patch: (id: number, data: Partial<GroupCreateInput>) =>
-    api.patch<Group>(`${BASE_URL}/groups/${id}/`, data),
-  delete: (id: number) => api.delete<void>(`${BASE_URL}/groups/${id}/`),
-  rating: () => api.get<Group[]>(`${BASE_URL}/groups/rating/`),
+    api.patch<Group>(`${EDUCATION_URL}/groups/${id}/`, data),
+  delete: (id: number) => api.delete<void>(`${EDUCATION_URL}/groups/${id}/`),
+  rating: () => api.get<GroupRating[]>(`${EDUCATION_URL}/groups/rating/`),
 };
 
 // ─── Owners ────────────────────────────────────────────────────────────────────
@@ -436,31 +463,41 @@ export interface UserCreateInput {
   role?: string;
 }
 
+export interface StudentRating {
+  id: number;
+  username: string;
+  first_name: string;
+  last_name: string;
+  total_score: number;
+  rank: number;
+  group_name: string;
+}
+
 // Alias for backwards compatibility
 export type Student = UserProfile;
 
 export const ownersApi = {
-  list: () => api.get<UserProfile[]>(`${BASE_URL}/owners/`),
-  get: (id: number) => api.get<UserProfile>(`${BASE_URL}/owners/${id}/`),
-  create: (data: UserCreateInput) => api.post<UserProfile>(`${BASE_URL}/owners/`, data),
+  list: () => api.get<UserProfile[]>(`${ACCOUNTS_URL}/owners/`),
+  get: (id: number) => api.get<UserProfile>(`${ACCOUNTS_URL}/owners/${id}/`),
+  create: (data: UserCreateInput) => api.post<UserProfile>(`${ACCOUNTS_URL}/owners/`, data),
   update: (id: number, data: Partial<UserCreateInput>) =>
-    api.put<UserProfile>(`${BASE_URL}/owners/${id}/`, data),
+    api.put<UserProfile>(`${ACCOUNTS_URL}/owners/${id}/`, data),
   patch: (id: number, data: Partial<UserCreateInput>) =>
-    api.patch<UserProfile>(`${BASE_URL}/owners/${id}/`, data),
-  delete: (id: number) => api.delete<void>(`${BASE_URL}/owners/${id}/`),
+    api.patch<UserProfile>(`${ACCOUNTS_URL}/owners/${id}/`, data),
+  delete: (id: number) => api.delete<void>(`${ACCOUNTS_URL}/owners/${id}/`),
 };
 
 // ─── Workers ───────────────────────────────────────────────────────────────────
 
 export const workersApi = {
-  list: () => api.get<UserProfile[]>(`${BASE_URL}/workers/`),
-  get: (id: number) => api.get<UserProfile>(`${BASE_URL}/workers/${id}/`),
-  create: (data: UserCreateInput) => api.post<UserProfile>(`${BASE_URL}/workers/`, data),
+  list: () => api.get<UserProfile[]>(`${ACCOUNTS_URL}/workers/`),
+  get: (id: number) => api.get<UserProfile>(`${ACCOUNTS_URL}/workers/${id}/`),
+  create: (data: UserCreateInput) => api.post<UserProfile>(`${ACCOUNTS_URL}/workers/`, data),
   update: (id: number, data: Partial<UserCreateInput>) =>
-    api.put<UserProfile>(`${BASE_URL}/workers/${id}/`, data),
+    api.put<UserProfile>(`${ACCOUNTS_URL}/workers/${id}/`, data),
   patch: (id: number, data: Partial<UserCreateInput>) =>
-    api.patch<UserProfile>(`${BASE_URL}/workers/${id}/`, data),
-  delete: (id: number) => api.delete<void>(`${BASE_URL}/workers/${id}/`),
+    api.patch<UserProfile>(`${ACCOUNTS_URL}/workers/${id}/`, data),
+  delete: (id: number) => api.delete<void>(`${ACCOUNTS_URL}/workers/${id}/`),
 };
 
 // ─── Students ──────────────────────────────────────────────────────────────────
@@ -468,61 +505,62 @@ export const workersApi = {
 export const studentsApi = {
   list: (groupId?: number) =>
     api.get<UserProfile[]>(
-      `${BASE_URL}/students/${groupId != null ? `?group_id=${groupId}` : ""}`
+      `${ACCOUNTS_URL}/students/${groupId != null ? `?group_id=${groupId}` : ""}`
     ),
-  get: (id: number) => api.get<UserProfile>(`${BASE_URL}/students/${id}/`),
-  create: (data: UserCreateInput) => api.post<UserProfile>(`${BASE_URL}/students/`, data),
+  get: (id: number) => api.get<UserProfile>(`${ACCOUNTS_URL}/students/${id}/`),
+  create: (data: UserCreateInput) => api.post<UserProfile>(`${ACCOUNTS_URL}/students/`, data),
   update: (id: number, data: Partial<UserCreateInput>) =>
-    api.put<UserProfile>(`${BASE_URL}/students/${id}/`, data),
+    api.put<UserProfile>(`${ACCOUNTS_URL}/students/${id}/`, data),
   patch: (id: number, data: Partial<UserCreateInput>) =>
-    api.patch<UserProfile>(`${BASE_URL}/students/${id}/`, data),
-  delete: (id: number) => api.delete<void>(`${BASE_URL}/students/${id}/`),
-  rating: (groupId?: number) =>
-    api.get<UserProfile[]>(
-      `${BASE_URL}/students/rating/${groupId != null ? `?group_id=${groupId}` : ""}`
+    api.patch<UserProfile>(`${ACCOUNTS_URL}/students/${id}/`, data),
+  delete: (id: number) => api.delete<void>(`${ACCOUNTS_URL}/students/${id}/`),
+  /** group_id is required by the API */
+  rating: (groupId: number) =>
+    api.get<StudentRating[]>(
+      `${ACCOUNTS_URL}/students/rating/?group_id=${groupId}`
     ),
 };
 
 // ─── Attendance ────────────────────────────────────────────────────────────────
 
 export const attendanceApi = {
-  list: () => api.get<AttendanceRecord[]>(`${BASE_URL}/attendance/`),
+  list: () => api.get<AttendanceRecord[]>(`${EDUCATION_URL}/attendance/`),
   create: (student: number, group: number, status: string) =>
-    api.post<AttendanceRecord>(`${BASE_URL}/attendance/`, { student, group, status }),
+    api.post<AttendanceRecord>(`${EDUCATION_URL}/attendance/`, { student, group, status }),
   bulkCreate: (group_id: number) =>
-    api.post<AttendanceRecord[]>(`${BASE_URL}/attendance/bulk_create/`, { group_id }),
+    api.post<AttendanceRecord[]>(`${EDUCATION_URL}/attendance/bulk_create/`, { group_id }),
   updateStatus: (id: number, status: string) =>
-    api.patch<AttendanceRecord>(`${BASE_URL}/attendance/${id}/`, { status }),
-  delete: (id: number) => api.delete<void>(`${BASE_URL}/attendance/${id}/`),
+    api.patch<AttendanceRecord>(`${EDUCATION_URL}/attendance/${id}/`, { status }),
+  delete: (id: number) => api.delete<void>(`${EDUCATION_URL}/attendance/${id}/`),
 };
 
 // ─── Scores ────────────────────────────────────────────────────────────────────
 
 export const scoresApi = {
-  list: () => api.get<ScoreRecord[]>(`${BASE_URL}/scores/`),
-  get: (id: number) => api.get<ScoreRecord>(`${BASE_URL}/scores/${id}/`),
+  list: () => api.get<ScoreRecord[]>(`${EDUCATION_URL}/scores/`),
+  get: (id: number) => api.get<ScoreRecord>(`${EDUCATION_URL}/scores/${id}/`),
   create: (student: number, group: number, score: number) =>
-    api.post<ScoreRecord>(`${BASE_URL}/scores/`, { student, group, score }),
+    api.post<ScoreRecord>(`${EDUCATION_URL}/scores/`, { student, group, score }),
   update: (id: number, score: number) =>
-    api.patch<ScoreRecord>(`${BASE_URL}/scores/${id}/`, { score }),
-  delete: (id: number) => api.delete<void>(`${BASE_URL}/scores/${id}/`),
+    api.patch<ScoreRecord>(`${EDUCATION_URL}/scores/${id}/`, { score }),
+  delete: (id: number) => api.delete<void>(`${EDUCATION_URL}/scores/${id}/`),
 };
 
 // ─── Homework ──────────────────────────────────────────────────────────────────
 
 export const homeworkApi = {
-  list: () => api.get<HomeworkRecord[]>(`${BASE_URL}/homework/`),
-  get: (id: number) => api.get<HomeworkRecord>(`${BASE_URL}/homework/${id}/`),
-  myHomework: () => api.get<HomeworkRecord[]>(`${BASE_URL}/homework/my-homework/`),
+  list: () => api.get<HomeworkRecord[]>(`${EDUCATION_URL}/homework/`),
+  get: (id: number) => api.get<HomeworkRecord>(`${EDUCATION_URL}/homework/${id}/`),
+  myHomework: () => api.get<HomeworkRecord[]>(`${EDUCATION_URL}/homework/my-homework/`),
   create: (formData: FormData) =>
-    api.postForm<HomeworkRecord>(`${BASE_URL}/homework/`, formData),
+    api.postForm<HomeworkRecord>(`${EDUCATION_URL}/homework/`, formData),
   update: (id: number, formData: FormData) =>
-    request<HomeworkRecord>(`${BASE_URL}/homework/${id}/`, {
+    request<HomeworkRecord>(`${EDUCATION_URL}/homework/${id}/`, {
       method: "PATCH",
       body: formData,
       isFormData: true,
     }),
-  delete: (id: number) => api.delete<void>(`${BASE_URL}/homework/${id}/`),
+  delete: (id: number) => api.delete<void>(`${EDUCATION_URL}/homework/${id}/`),
 };
 
 // ─── Payments ──────────────────────────────────────────────────────────────────
@@ -535,13 +573,13 @@ export interface PaymentCreateInput {
 }
 
 export const paymentsApi = {
-  list: () => api.get<PaymentRecord[]>(`${BASE_URL}/payments/`),
-  get: (id: number) => api.get<PaymentRecord>(`${BASE_URL}/payments/${id}/`),
-  myPayments: () => api.get<PaymentRecord[]>(`${BASE_URL}/payments/my-payments/`),
-  create: (data: PaymentCreateInput) => api.post<PaymentRecord>(`${BASE_URL}/payments/`, data),
+  list: () => api.get<PaymentRecord[]>(`${FINANCE_URL}/payments/`),
+  get: (id: number) => api.get<PaymentRecord>(`${FINANCE_URL}/payments/${id}/`),
+  myPayments: () => api.get<PaymentRecord[]>(`${FINANCE_URL}/payments/my-payments/`),
+  create: (data: PaymentCreateInput) => api.post<PaymentRecord>(`${FINANCE_URL}/payments/`, data),
   update: (id: number, data: Partial<PaymentCreateInput>) =>
-    api.patch<PaymentRecord>(`${BASE_URL}/payments/${id}/`, data),
-  delete: (id: number) => api.delete<void>(`${BASE_URL}/payments/${id}/`),
+    api.patch<PaymentRecord>(`${FINANCE_URL}/payments/${id}/`, data),
+  delete: (id: number) => api.delete<void>(`${FINANCE_URL}/payments/${id}/`),
 };
 
 // ─── Expenses ──────────────────────────────────────────────────────────────────
@@ -554,13 +592,13 @@ export interface ExpenseCreateInput {
 }
 
 export const expensesApi = {
-  list: () => api.get<ExpenseRecord[]>(`${BASE_URL}/expenses/`),
-  get: (id: number) => api.get<ExpenseRecord>(`${BASE_URL}/expenses/${id}/`),
+  list: () => api.get<ExpenseRecord[]>(`${FINANCE_URL}/expenses/`),
+  get: (id: number) => api.get<ExpenseRecord>(`${FINANCE_URL}/expenses/${id}/`),
   create: (data: ExpenseCreateInput) =>
-    api.post<ExpenseRecord>(`${BASE_URL}/expenses/`, data),
+    api.post<ExpenseRecord>(`${FINANCE_URL}/expenses/`, data),
   update: (id: number, data: Partial<ExpenseCreateInput>) =>
-    api.patch<ExpenseRecord>(`${BASE_URL}/expenses/${id}/`, data),
-  delete: (id: number) => api.delete<void>(`${BASE_URL}/expenses/${id}/`),
+    api.patch<ExpenseRecord>(`${FINANCE_URL}/expenses/${id}/`, data),
+  delete: (id: number) => api.delete<void>(`${FINANCE_URL}/expenses/${id}/`),
 };
 
 // ─── Exams ─────────────────────────────────────────────────────────────────────
@@ -590,42 +628,95 @@ export interface MessageCreateInput {
 }
 
 export const examsApi = {
-  list: () => api.get<ExamRecord[]>(`${BASE_URL}/exams/`),
-  get: (id: number) => api.get<ExamRecord>(`${BASE_URL}/exams/${id}/`),
+  list: () => api.get<ExamRecord[]>(`${EXAMS_URL}/exams/`),
+  get: (id: number) => api.get<ExamRecord>(`${EXAMS_URL}/exams/${id}/`),
   create: (data: ExamCreateInput) =>
-    api.post<ExamRecord>(`${BASE_URL}/exams/`, data),
+    api.post<ExamRecord>(`${EXAMS_URL}/exams/`, data),
   update: (id: number, data: Partial<ExamCreateInput>) =>
-    api.patch<ExamRecord>(`${BASE_URL}/exams/${id}/`, data),
-  delete: (id: number) => api.delete<void>(`${BASE_URL}/exams/${id}/`),
+    api.patch<ExamRecord>(`${EXAMS_URL}/exams/${id}/`, data),
+  delete: (id: number) => api.delete<void>(`${EXAMS_URL}/exams/${id}/`),
   enterCode: (code: string) =>
-    api.post<ExamRecord>(`${BASE_URL}/exams/enter-code/`, { code }),
+    api.post<ExamRecord>(`${EXAMS_URL}/exams/enter-code/`, { code }),
   publish: (id: number) =>
-    api.post<{ status: string }>(`${BASE_URL}/exams/${id}/publish/`),
+    api.post<{ status: string }>(`${EXAMS_URL}/exams/${id}/publish/`),
   unpublish: (id: number) =>
-    api.post<{ status: string }>(`${BASE_URL}/exams/${id}/unpublish/`),
+    api.post<{ status: string }>(`${EXAMS_URL}/exams/${id}/unpublish/`),
   copy: (id: number) =>
-    api.post<ExamRecord>(`${BASE_URL}/exams/${id}/copy/`),
+    api.post<ExamRecord>(`${EXAMS_URL}/exams/${id}/copy/`),
   submit: (id: number, answers: ExamSubmitAnswer[]) =>
-    api.post<ExamResultRecord>(`${BASE_URL}/exams/${id}/submit/`, { answers }),
+    api.post<ExamResultRecord>(`${EXAMS_URL}/exams/${id}/submit/`, { answers }),
 };
 
 // ─── Exam Results ──────────────────────────────────────────────────────────────
 
+export interface ExamGradeInput {
+  answer_id: number;
+  earned_score: number;
+  comment?: string;
+}
+
 export const examResultsApi = {
-  list: () => api.get<ExamResultRecord[]>(`${BASE_URL}/exam-results/`),
-  get: (id: number) => api.get<ExamResultRecord>(`${BASE_URL}/exam-results/${id}/`),
-  myResults: () => api.get<ExamResultRecord[]>(`${BASE_URL}/exam-results/my-results/`),
+  list: () => api.get<ExamResultRecord[]>(`${EXAMS_URL}/exam-results/`),
+  get: (id: number) => api.get<ExamResultRecord>(`${EXAMS_URL}/exam-results/${id}/`),
+  myResults: () => api.get<ExamResultRecord[]>(`${EXAMS_URL}/exam-results/my-results/`),
   create: (data: Partial<ExamResultRecord>) =>
-    api.post<ExamResultRecord>(`${BASE_URL}/exam-results/`, data),
+    api.post<ExamResultRecord>(`${EXAMS_URL}/exam-results/`, data),
   update: (id: number, data: Partial<ExamResultRecord>) =>
-    api.patch<ExamResultRecord>(`${BASE_URL}/exam-results/${id}/`, data),
-  delete: (id: number) => api.delete<void>(`${BASE_URL}/exam-results/${id}/`),
+    api.patch<ExamResultRecord>(`${EXAMS_URL}/exam-results/${id}/`, data),
+  delete: (id: number) => api.delete<void>(`${EXAMS_URL}/exam-results/${id}/`),
+  /** Grade written answers for an exam result. Only owner/employee. */
+  grade: (id: number, grades: ExamGradeInput[]) =>
+    api.post<ExamResultRecord>(`${EXAMS_URL}/exam-results/${id}/grade/`, { grades }),
 };
 
-// ─── Work Logs ─────────────────────────────────────────────────────────────────
+// ─── Teacher Logs ─────────────────────────────────────────────────────────────
 
-export const workLogsApi = {
-  list: (params?: { employee?: number; date?: string }) => {
+export type TeacherLogStatus = "dars_otdi" | "dars_otmadi" | "orin_bosdi";
+
+export interface TeacherLog {
+  id: number;
+  teacher: {
+    id: number;
+    username: string;
+    first_name: string;
+    last_name: string;
+    role: string;
+  };
+  group: number;
+  group_name: string;
+  group_subject: string;
+  date: string;
+  status: TeacherLogStatus;
+  status_display: string;
+  replaced_for: number | null;
+  replaced_for_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TeacherLogStat {
+  total_lessons: number;
+  dars_otdi: number;
+  dars_otmadi: number;
+  orin_bosdi: number;
+  efficiency: number;
+}
+
+export interface PaginatedResult<T> {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+}
+
+export const teacherLogsApi = {
+  list: (params?: {
+    teacher_id?: number;
+    group_id?: number;
+    date_from?: string;
+    date_to?: string;
+    status?: TeacherLogStatus;
+  }) => {
     const qs = params
       ? "?" +
         Object.entries(params)
@@ -633,23 +724,61 @@ export const workLogsApi = {
           .map(([k, v]) => `${k}=${v}`)
           .join("&")
       : "";
-    return api.get<WorkLog[]>(`${BASE_URL}/work-logs/${qs}`);
+    return api.get<TeacherLog[]>(`${EDUCATION_URL}/teacher-logs/${qs}`);
   },
-  get: (id: number) => api.get<WorkLog>(`${BASE_URL}/work-logs/${id}/`),
+  get: (id: number) => api.get<TeacherLog>(`${EDUCATION_URL}/teacher-logs/${id}/`),
+  myLogs: (params?: {
+    date_from?: string;
+    date_to?: string;
+    status?: TeacherLogStatus;
+  }) => {
+    const qs = params
+      ? "?" +
+        Object.entries(params)
+          .filter(([, v]) => v !== undefined)
+          .map(([k, v]) => `${k}=${v}`)
+          .join("&")
+      : "";
+    return api.get<PaginatedResult<TeacherLog>>(`${EDUCATION_URL}/teacher-logs/my-logs/${qs}`);
+  },
+  groupLogs: (group_id: number) =>
+    api.get<PaginatedResult<TeacherLog>>(`${EDUCATION_URL}/teacher-logs/group-logs/?group_id=${group_id}`),
+  stat: (params?: { teacher_id?: number; date_from?: string; date_to?: string }) => {
+    const qs = params
+      ? "?" +
+        Object.entries(params)
+          .filter(([, v]) => v !== undefined)
+          .map(([k, v]) => `${k}=${v}`)
+          .join("&")
+      : "";
+    return api.get<TeacherLogStat>(`${EDUCATION_URL}/teacher-logs/stat/${qs}`);
+  },
+};
+
+// ─── Work Logs (legacy — not in documented API, kept for type-compatibility) ─────────
+// NOTE: The documented backend does not expose a /work-logs/ endpoint.
+// Use teacherLogsApi for teacher activity tracking.
+/** @deprecated Use teacherLogsApi instead */
+export const workLogsApi = {
+  list: (_params?: { employee?: number; date?: string }) =>
+    Promise.resolve([] as WorkLog[]),
+  get: (_id: number) => Promise.resolve(null as unknown as WorkLog),
 };
 
 // ─── Messages ──────────────────────────────────────────────────────────────────
 
 export const messagesApi = {
-  list: () => api.get<MessageRecord[]>(`${BASE_URL}/messages/`),
-  get: (id: number) => api.get<MessageRecord>(`${BASE_URL}/messages/${id}/`),
+  list: () => api.get<MessageRecord[]>(`${ACCOUNTS_URL}/messages/`),
+  get: (id: number) => api.get<MessageRecord>(`${ACCOUNTS_URL}/messages/${id}/`),
+  messageLogs: (messageId: number) =>
+    api.get<MessageLog[]>(`${ACCOUNTS_URL}/message/logs/${messageId}/`),
   send: (data: MessageCreateInput) =>
-    api.post<MessageRecord>(`${BASE_URL}/messages/`, data),
+    api.post<MessageRecord>(`${ACCOUNTS_URL}/messages/`, data),
   update: (id: number, data: { text: string }) =>
-    api.put<MessageRecord>(`${BASE_URL}/messages/${id}/`, data),
+    api.put<MessageRecord>(`${ACCOUNTS_URL}/messages/${id}/`, data),
   patch: (id: number, data: Partial<{ text: string }>) =>
-    api.patch<MessageRecord>(`${BASE_URL}/messages/${id}/`, data),
-  delete: (id: number) => api.delete<void>(`${BASE_URL}/messages/${id}/`),
+    api.patch<MessageRecord>(`${ACCOUNTS_URL}/messages/${id}/`, data),
+  delete: (id: number) => api.delete<void>(`${ACCOUNTS_URL}/messages/${id}/`),
 };
 
 // ─── Mock Tests ────────────────────────────────────────────────────────────────

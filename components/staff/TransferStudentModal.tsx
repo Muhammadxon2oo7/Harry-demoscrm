@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Loader2, Users } from "lucide-react";
 import { getStaffGroups } from "@/lib/api";
+import { toast } from "@/lib/toast";
 
 type Props = {
   studentName: string;
@@ -50,7 +51,7 @@ export function TransferStudentModal({ studentName, currentGroupId, studentId, i
       onSuccess();
       onClose();
     } catch (err: any) {
-      alert("Xatolik: " + err.message);
+      toast.error("Xatolik: " + err.message);
     } finally {
       setLoading(false);
     }

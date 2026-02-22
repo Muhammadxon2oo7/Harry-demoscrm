@@ -13,6 +13,7 @@ import {
   DollarSign,
   BookOpen,
   FileText,
+  MessageSquare,
 } from "lucide-react";
 import { useState } from "react";
 import Image from "next/image";
@@ -27,6 +28,7 @@ export function StaffSidebar() {
     { href: "/staff", label: "Dashboard", icon: Users },
     { href: "/staff/subjects", label: "Fanlar va Guruhlar", icon: BookOpen },
     { href: "/staff/tests", label: "Testlar", icon: FileText },
+    { href: "/staff/messages", label: "Xabarlar", icon: MessageSquare },
     { href: "/staff/rating", label: "Reyting", icon: Award },
   ];
 

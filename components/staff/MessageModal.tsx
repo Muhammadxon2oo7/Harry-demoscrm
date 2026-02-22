@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Send, X } from "lucide-react";
 import { sendMessageToStudents } from "@/lib/api";
+import { toast } from "@/lib/toast";
 
 export function MessageModal({ 
   studentIds, 
@@ -25,7 +26,7 @@ export function MessageModal({
       onSuccess();
       onClose();
     } catch (err: any) {
-      alert("Xatolik: " + err.message);
+      toast.error("Xatolik: " + err.message);
     } finally {
       setSending(false);
     }

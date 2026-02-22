@@ -23,3 +23,15 @@ export function fmtDateTime(value: string | Date): string {
   const min = String(d.getMinutes()).padStart(2, "0");
   return `${hh}:${min} ${fmtDate(d)}`;
 }
+
+/** Format a date/datetime string as "Dsh, 22 Fevral 2026" (weekday short + full date) */
+export function fmtDateFull(value: string | Date): string {
+  const d = typeof value === "string" ? new Date(value) : value;
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("uz-UZ", {
+    weekday: "short",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}

@@ -4,6 +4,7 @@ import type React from "react"
 
 import { useState, useRef } from "react"
 import { ChevronDown } from "lucide-react"
+import { toast } from "@/lib/toast"
 
 const COURSES = [
   { value: "555 (1–4 sinf, rus va o‘zbek guruhlari)", label: "555 (1–4 sinf)" },
@@ -32,7 +33,7 @@ export default function CTA() {
   e.preventDefault();
 
   if (!formData.name || !formData.course || !formData.phone) {
-    alert("Barcha maydonlarni to‘ldiring!");
+    toast.info("Barcha maydonlarni to'ldiring!");
     return;
   }
 
@@ -72,7 +73,7 @@ export default function CTA() {
     setTimeout(() => setSubmitted(false), 3000);
   } catch (err) {
     console.error(err);
-    alert("Xatolik yuz berdi. Iltimos qayta urinib ko‘ring.");
+    toast.error("Xatolik yuz berdi. Iltimos qayta urinib ko'ring.");
   }
 };
 

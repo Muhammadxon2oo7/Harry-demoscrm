@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,20 +14,20 @@ import {
 } from "@/components/ui/select";
 import {
   ArrowLeft, Plus, Trash2, GripVertical, Eye, Save,
-  CheckCircle, XCircle, FileText, Loader2,
+  XCircle, FileText, Loader2,
 } from "lucide-react";
 import {
   examsApi, subjectsApi,
   type Subject, type ExamQuestionInput,
 } from "@/lib/api";
+import { toast } from "@/lib/toast";
 
-interface UIOption { id: string; text: string; isCorrect: boolean; }
+interface UIOption { id: string; text: string; }
 interface UIQuestion {
   id: string;
   type: "multiple-choice" | "open-ended";
   questionText: string;
   options?: UIOption[];
-  writtenAnswerSample?: string;
   order: number;
 }
 
@@ -37,8 +37,8 @@ function toApiQuestions(questions: UIQuestion[]): ExamQuestionInput[] {
     type: q.type === "multiple-choice" ? "test" : "written",
     order: idx + 1,
     ...(q.type === "multiple-choice"
-      ? { options: (q.options || []).map((o, oi) => ({ text: o.text, is_correct: o.isCorrect, order: oi + 1 })) }
-      : { written_answer_sample: q.writtenAnswerSample }),
+      ? { options: (q.options || []).filter((o) => o.text.trim() !== "").map((o, oi) => ({ text: o.text, order: oi + 1 })) }
+      : {}),
   }));
 }
 
@@ -73,8 +73,7 @@ function StaffCreateTestPageContent() {
           type: q.type === "test" ? "multiple-choice" : "open-ended",
           questionText: q.text,
           order: idx + 1,
-          options: q.options?.map((o) => ({ id: String(o.id), text: o.text, isCorrect: o.is_correct })),
-          writtenAnswerSample: q.written_answer_sample ?? "",
+          options: q.options?.map((o) => ({ id: String(o.id), text: o.text })),
         })));
       }
     }).catch(console.error);
@@ -86,8 +85,8 @@ function StaffCreateTestPageContent() {
       {
         id: Date.now().toString(), type, questionText: "", order: prev.length + 1,
         ...(type === "multiple-choice"
-          ? { options: [{ id: "1", text: "", isCorrect: false }, { id: "2", text: "", isCorrect: false }] }
-          : { writtenAnswerSample: "" }),
+          ? { options: [{ id: "1", text: "" }, { id: "2", text: "" }] }
+          : {}),
       },
     ]);
 
@@ -101,7 +100,7 @@ function StaffCreateTestPageContent() {
     setQuestions((prev) =>
       prev.map((q) =>
         q.id === qId && q.type === "multiple-choice"
-          ? { ...q, options: [...(q.options || []), { id: Date.now().toString(), text: "", isCorrect: false }] }
+          ? { ...q, options: [...(q.options || []), { id: Date.now().toString(), text: "" }] }
           : q
       )
     );
@@ -110,15 +109,6 @@ function StaffCreateTestPageContent() {
     setQuestions((prev) =>
       prev.map((q) =>
         q.id === qId ? { ...q, options: q.options?.map((o) => (o.id === optId ? { ...o, text } : o)) } : q
-      )
-    );
-
-  const toggleCorrect = (qId: string, optId: string) =>
-    setQuestions((prev) =>
-      prev.map((q) =>
-        q.id === qId
-          ? { ...q, options: q.options?.map((o) => (o.id === optId ? { ...o, isCorrect: !o.isCorrect } : o)) }
-          : q
       )
     );
 
@@ -147,7 +137,7 @@ function StaffCreateTestPageContent() {
       router.push("/staff/tests");
     } catch (e) {
       console.error(e);
-      alert("Saqlashda xatolik yuz berdi");
+      toast.error("Saqlashda xatolik yuz berdi");
     } finally {
       setSaving(false);
     }
@@ -192,18 +182,16 @@ function StaffCreateTestPageContent() {
                     {q.options?.map((opt, oi) => (
                       <div
                         key={opt.id}
-                        className={`p-3 rounded-lg border-2 ${opt.isCorrect ? "border-green-500 bg-green-50 dark:bg-green-950/20" : "border-border"}`}
+                        className="p-3 rounded-lg border-2 border-border"
                       >
                         <span className="font-medium mr-2">{String.fromCharCode(97 + oi)})</span>
                         <span>{opt.text}</span>
-                        {opt.isCorrect && <CheckCircle className="w-4 h-4 text-green-500 inline ml-2" />}
                       </div>
                     ))}
                   </div>
                 ) : (
                   <div className="ml-11 p-4 bg-muted/50 rounded-lg border">
-                    <p className="text-xs text-muted-foreground mb-1">Namunaviy javob:</p>
-                    <p>{q.writtenAnswerSample || "—"}</p>
+                    <p className="text-sm text-muted-foreground italic">Yozma javob (o&apos;quvchi tomonidan to&apos;ldiriladi)</p>
                   </div>
                 )}
               </div>
@@ -337,19 +325,9 @@ function StaffCreateTestPageContent() {
 
                     {q.type === "multiple-choice" && (
                       <div className="space-y-2">
-                        <Label className="text-xs">Javob variantlari (to&apos;g&apos;risini belgilang)</Label>
+                        <Label className="text-xs">Javob variantlari</Label>
                         {q.options?.map((opt, oi) => (
                           <div key={opt.id} className="flex items-center gap-2">
-                            <button
-                              onClick={() => toggleCorrect(q.id, opt.id)}
-                              className={`shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-                                opt.isCorrect
-                                  ? "bg-green-500 border-green-500"
-                                  : "border-muted-foreground hover:border-primary"
-                              }`}
-                            >
-                              {opt.isCorrect && <CheckCircle className="w-3 h-3 text-white" />}
-                            </button>
                             <span className="font-medium text-xs shrink-0">{String.fromCharCode(97 + oi)})</span>
                             <Input
                               placeholder="Javob varianti..."
@@ -383,15 +361,8 @@ function StaffCreateTestPageContent() {
                     )}
 
                     {q.type === "open-ended" && (
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Namunaviy to&apos;g&apos;ri javob</Label>
-                        <Textarea
-                          placeholder="To'g'ri javobni kiriting (tekshirishda yordam beradi)..."
-                          value={q.writtenAnswerSample ?? ""}
-                          onChange={(e) => updateQuestion(q.id, { writtenAnswerSample: e.target.value })}
-                          rows={2}
-                          className="text-sm"
-                        />
+                      <div className="p-3 bg-muted/40 rounded-lg border border-dashed">
+                        <p className="text-xs text-muted-foreground">O&apos;quvchi bu yerga yozma javob yozadi</p>
                       </div>
                     )}
                   </div>

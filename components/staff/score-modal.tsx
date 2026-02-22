@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { X, AlertCircle, Trophy, CalendarIcon, List } from "lucide-react";
 import { format, isBefore, isAfter, startOfDay } from "date-fns";
 import { scoresApi, studentsApi, type ScoreRecord } from "@/lib/api";
+import { toast } from "@/lib/toast";
 
 interface Props {
   groupId: number;
@@ -71,7 +72,7 @@ export function ScoreModal({ groupId, isOpen, onClose }: Props) {
       );
       setScores(created);
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     } finally {
       setLoading(false);
     }
@@ -80,7 +81,7 @@ export function ScoreModal({ groupId, isOpen, onClose }: Props) {
 const handleScoreChange = async (scoreId: number, value: string) => {
   if (!isEditable) return;
   const num = parseInt(value);
-  if (isNaN(num) || num < 0 || num > 9) return; // Maks 9
+  if (isNaN(num) || num < 0 || num > 100) return; // Maks 100
 
   setUpdating(scoreId);
   try {
@@ -89,7 +90,7 @@ const handleScoreChange = async (scoreId: number, value: string) => {
       prev.map((s) => (s.id === updated.id ? updated : s))
     );
   } catch (err: any) {
-    alert(err.message);
+    toast.error(err.message);
   } finally {
     setUpdating(null);
   }
@@ -275,21 +276,21 @@ const handleScoreChange = async (scoreId: number, value: string) => {
                   <Input
   type="number"
   min="0"
-  max="9"
+  max="100"
   value={scoreValue}
   onChange={(e) => handleScoreChange(score.id, e.target.value)}
   disabled={!isEditable || isUpdating}
   className={`w-16 h-9 text-center text-sm font-bold transition-all ${
-    scoreValue >= 8
+    scoreValue >= 80
       ? "bg-green-100 text-green-700"
-      : scoreValue >= 6
+      : scoreValue >= 60
       ? "bg-yellow-100 text-yellow-700"
-      : scoreValue >= 4
+      : scoreValue >= 40
       ? "bg-orange-100 text-orange-700"
       : "bg-red-100 text-red-700"
   } ${!isEditable ? "opacity-50" : ""}`}
 />
-<span className="text-xs text-muted-foreground">/9</span>
+<span className="text-xs text-muted-foreground">/100</span>
                 </div>
               </div>
             </Card>

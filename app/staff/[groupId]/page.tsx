@@ -24,6 +24,7 @@ import { DeleteConfirmModal } from "@/components/admin/delete-confirm-modal";
 import { HomeworkDrawer } from "@/components/staff/homework-drawer";
 import { AttendanceModal } from "@/components/staff/attendance-modal";
 import { ScoreModal } from "@/components/staff/score-modal";
+import { MessageModal } from "@/components/staff/MessageModal";
 import {
   groupsApi,
   studentsApi,
@@ -59,6 +60,7 @@ export default function StaffGroupDetailPage() {
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
   const [showScoreModal, setShowScoreModal] = useState(false);
   const [selectedStudents, setSelectedStudents] = useState<number[]>([]);
+  const [showMessageModal, setShowMessageModal] = useState(false);
 
   const gid = Number(groupId);
 
@@ -237,7 +239,7 @@ export default function StaffGroupDetailPage() {
           </Button>
 
           {selectedStudents.length > 0 ? (
-            <Button size="sm" className="h-9 text-xs font-medium bg-green-600 hover:bg-green-700">
+            <Button size="sm" className="h-9 text-xs font-medium bg-green-600 hover:bg-green-700" onClick={() => setShowMessageModal(true)}>
               <Send className="w-3.5 h-3.5 mr-1.5" /> Xabar yuborish ({selectedStudents.length})
             </Button>
           ) : (
@@ -386,6 +388,13 @@ export default function StaffGroupDetailPage() {
       />
       <AttendanceModal groupId={gid} isOpen={showAttendanceModal} onClose={() => setShowAttendanceModal(false)} />
       <ScoreModal groupId={gid} isOpen={showScoreModal} onClose={() => setShowScoreModal(false)} />
+      {showMessageModal && (
+        <MessageModal
+          studentIds={selectedStudents}
+          onClose={() => setShowMessageModal(false)}
+          onSuccess={() => setSelectedStudents([])}
+        />
+      )}
     </div>
   );
 }

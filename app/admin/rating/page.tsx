@@ -9,135 +9,87 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Trophy, Medal, Award } from "lucide-react";
+import { Trophy, Medal, Award, Users, Star } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { groupsApi, studentsApi, scoresApi, attendanceApi, subjectsApi, type Group } from "@/lib/api";
-
-interface GroupRating {
-  id: number;
-  groupName: string;
-  subjectName: string;
-  averageScore: number;
-  studentsCount: number;
-  teacherName: string;
-}
-
-interface StudentRating {
-  id: number;
-  studentName: string;
-  groupName: string;
-  score: number;
-  attendance: number;
-}
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import {
+  groupsApi,
+  studentsApi,
+  subjectsApi,
+  type GroupRating,
+  type StudentRating,
+} from "@/lib/api";
 
 export default function AdminRatingPage() {
-  const [groups, setGroups] = useState<Group[]>([]);
   const [groupRatings, setGroupRatings] = useState<GroupRating[]>([]);
   const [studentRatings, setStudentRatings] = useState<StudentRating[]>([]);
-  const [selectedSubject, setSelectedSubject] = useState("all");
-  const [selectedGroup, setSelectedGroup] = useState("all");
+  const [groups, setGroups] = useState<{ id: number; name: string; subject_name?: string | null }[]>([]);
   const [subjects, setSubjects] = useState<{ id: number; name: string }[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [selectedSubject, setSelectedSubject] = useState("all");
+  const [selectedGroup, setSelectedGroup] = useState("");
+  const [loadingGroups, setLoadingGroups] = useState(true);
+  const [loadingStudents, setLoadingStudents] = useState(false);
 
+  // Load group ratings + groups list + subjects list
   useEffect(() => {
     async function load() {
       try {
-        const [grps, scores, attendance, studs, subs] = await Promise.all([
+        const [ratings, grps, subs] = await Promise.all([
+          groupsApi.rating(),
           groupsApi.list(),
-          scoresApi.list(),
-          attendanceApi.list(),
-          studentsApi.list(),
           subjectsApi.list(),
         ]);
-
-        setGroups(grps);
-        setSubjects(subs);
-
-        // Build score map by group
-        const scoreMap: Record<number, number[]> = {};
-        scores.forEach((s) => {
-          const gid = typeof s.group === "object" ? s.group.id : (s as unknown as { group: number }).group;
-          if (!scoreMap[gid]) scoreMap[gid] = [];
-          scoreMap[gid].push(s.score);
-        });
-
-        // Build attendance map by group+student
-        const attMap: Record<string, { total: number; present: number }> = {};
-        attendance.forEach((a) => {
-          const gid = typeof a.group === "object" ? a.group.id : (a as unknown as { group: number }).group;
-          const sid = typeof a.student === "object" ? a.student.id : (a as unknown as { student: number }).student;
-          const key = `${gid}_${sid}`;
-          if (!attMap[key]) attMap[key] = { total: 0, present: 0 };
-          attMap[key].total++;
-          if (a.status === "keldi" || a.status === "kechikdi") attMap[key].present++;
-        });
-
-        const ratings: GroupRating[] = grps.map((g) => ({
-          id: g.id,
-          groupName: g.name,
-          subjectName: g.subject_name || "",
-          averageScore: scoreMap[g.id]?.length
-            ? Math.round((scoreMap[g.id].reduce((a, b) => a + b, 0) / scoreMap[g.id].length) * 10) / 10
-            : 0,
-          studentsCount: g.students_count,
-          teacherName: (g as unknown as { employee_name?: string }).employee_name || "",
-        })).sort((a, b) => b.averageScore - a.averageScore);
         setGroupRatings(ratings);
-
-        // Build student ratings (all students with their group context)
-        const scoreByStudent: Record<number, { scores: number[]; groupId: number }> = {};
-        scores.forEach((s) => {
-          const sid = typeof s.student === "object" ? s.student.id : (s as unknown as { student: number }).student;
-          const gid = typeof s.group === "object" ? s.group.id : (s as unknown as { group: number }).group;
-          if (!scoreByStudent[sid]) scoreByStudent[sid] = { scores: [], groupId: gid };
-          scoreByStudent[sid].scores.push(s.score);
-        });
-
-        const studRatings: StudentRating[] = studs.map((s) => {
-          const info = scoreByStudent[s.id];
-          const avg = info ? Math.round(info.scores.reduce((a, b) => a + b, 0) / info.scores.length) : 0;
-          const gid = s.group ? (typeof s.group === "object" ? s.group.id : s.group) : 0;
-          const attKey = `${gid}_${s.id}`;
-          const att = attMap[attKey];
-          const attPct = att ? Math.round((att.present / att.total) * 100) : 0;
-          const groupName = grps.find((g) => g.id === gid)?.name || "";
-          return {
-            id: s.id,
-            studentName: `${s.first_name} ${s.last_name}`.trim() || s.username,
-            groupName,
-            score: avg,
-            attendance: attPct,
-          };
-        }).sort((a, b) => b.score - a.score);
-        setStudentRatings(studRatings);
+        setGroups(grps.map((g) => ({ id: g.id, name: g.name, subject_name: g.subject_name })));
+        setSubjects(subs);
+        if (grps.length > 0) setSelectedGroup(String(grps[0].id));
       } catch (err) {
         console.error(err);
       } finally {
-        setLoading(false);
+        setLoadingGroups(false);
       }
     }
     load();
   }, []);
 
-  const filteredGroupRatings = groupRatings.filter((gr) => {
+  // Load student ratings when selected group changes
+  useEffect(() => {
+    if (!selectedGroup) return;
+    setLoadingStudents(true);
+    studentsApi
+      .rating(Number(selectedGroup))
+      .then(setStudentRatings)
+      .catch(console.error)
+      .finally(() => setLoadingStudents(false));
+  }, [selectedGroup]);
+
+  const filteredGroupRatings = groupRatings.filter((g) => {
     if (selectedSubject === "all") return true;
     const sub = subjects.find((s) => String(s.id) === selectedSubject);
-    return sub?.name === gr.subjectName;
+    return sub ? g.subject_name === sub.name : true;
   });
 
-  const filteredStudentRatings = studentRatings.filter((sr) => {
-    if (selectedGroup === "all") return true;
-    return String(groups.find((g) => g.name === sr.groupName)?.id) === selectedGroup;
-  });
+  const maxGroupScore = filteredGroupRatings[0]?.total_score || 1;
+  const maxStudentScore = studentRatings[0]?.total_score || 1;
 
   const getRankIcon = (rank: number) => {
-    switch (rank) {
-      case 1: return <Trophy className="w-6 h-6 text-yellow-500" />;
-      case 2: return <Medal className="w-6 h-6 text-gray-400" />;
-      case 3: return <Award className="w-6 h-6 text-amber-600" />;
-      default: return <span className="w-6 h-6 flex items-center justify-center text-sm font-semibold">{rank}</span>;
-    }
+    if (rank === 1) return <Trophy className="w-5 h-5 text-yellow-500" />;
+    if (rank === 2) return <Medal className="w-5 h-5 text-gray-400" />;
+    if (rank === 3) return <Award className="w-5 h-5 text-amber-600" />;
+    return (
+      <span className="text-sm font-bold text-muted-foreground">#{rank}</span>
+    );
   };
+
+  const getRankBg = (rank: number) => {
+    if (rank === 1) return "bg-yellow-50 border-yellow-200 dark:bg-yellow-950/20 dark:border-yellow-800";
+    if (rank === 2) return "bg-gray-50 border-gray-200 dark:bg-gray-900/20 dark:border-gray-700";
+    if (rank === 3) return "bg-amber-50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-800";
+    return "bg-card border-border";
+  };
+
+  const selectedGroupName = groups.find((g) => String(g.id) === selectedGroup)?.name || "";
 
   return (
     <div className="space-y-6">
@@ -152,11 +104,12 @@ export default function AdminRatingPage() {
           <TabsTrigger value="students">O&apos;quvchilar reytingi</TabsTrigger>
         </TabsList>
 
-        {/* GROUPS RATING */}
-        <TabsContent value="groups" className="mt-6">
-          <Card className="p-4 mb-6">
+        {/* ── GROUPS RATING ── */}
+        <TabsContent value="groups" className="mt-6 space-y-4">
+          {/* Filter */}
+          <Card className="p-4">
             <div className="flex items-center gap-4">
-              <div className="flex-1">
+              <div className="flex-1 max-w-xs">
                 <label className="text-sm font-medium mb-2 block">Fan bo&apos;yicha filter</label>
                 <Select value={selectedSubject} onValueChange={setSelectedSubject}>
                   <SelectTrigger>
@@ -172,38 +125,59 @@ export default function AdminRatingPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="text-sm text-muted-foreground mt-5">
+                {filteredGroupRatings.length} ta guruh
+              </div>
             </div>
           </Card>
 
-          {loading ? (
-            <p className="text-muted-foreground">Yuklanmoqda...</p>
+          {/* List */}
+          {loadingGroups ? (
+            <div className="space-y-3">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="h-24 rounded-xl bg-muted animate-pulse" />
+              ))}
+            </div>
+          ) : filteredGroupRatings.length === 0 ? (
+            <Card className="p-12 text-center">
+              <Star className="w-12 h-12 mx-auto text-muted-foreground/40 mb-3" />
+              <p className="text-muted-foreground">Reyting ma&apos;lumotlari yo&apos;q</p>
+            </Card>
           ) : (
-            <div className="grid gap-4">
-              {filteredGroupRatings.map((group, index) => (
-                <Card key={group.id} className="p-6">
+            <div className="space-y-3">
+              {filteredGroupRatings.map((group) => (
+                <Card
+                  key={group.id}
+                  className={`p-5 border ${getRankBg(group.rank)}`}
+                >
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-                      {getRankIcon(index + 1)}
+                    <div className="w-11 h-11 rounded-full bg-background border flex items-center justify-center shrink-0">
+                      {getRankIcon(group.rank)}
                     </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold">{group.groupName}</h3>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2 text-sm">
-                        <div>
-                          <p className="text-muted-foreground">Fan:</p>
-                          <p className="font-medium">{group.subjectName || "—"}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">O&apos;qituvchi:</p>
-                          <p className="font-medium">{group.teacherName || "—"}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">O&apos;quvchilar:</p>
-                          <p className="font-medium">{group.studentsCount} ta</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">O&apos;rtacha ball:</p>
-                          <p className="font-medium text-lg text-primary">{group.averageScore}</p>
-                        </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <h3 className="font-semibold text-foreground">{group.name}</h3>
+                        {group.subject_name && (
+                          <Badge variant="secondary" className="text-xs">
+                            {group.subject_name}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <Progress
+                          value={(group.total_score / maxGroupScore) * 100}
+                          className="h-2 flex-1"
+                        />
+                        <span className="text-sm text-muted-foreground whitespace-nowrap">
+                          {group.total_score} ball
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-2xl font-bold text-primary">{group.total_score}</p>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground justify-end mt-0.5">
+                        <Users className="w-3 h-3" />
+                        {group.students_count} ta
                       </div>
                     </div>
                   </div>
@@ -213,52 +187,72 @@ export default function AdminRatingPage() {
           )}
         </TabsContent>
 
-        {/* STUDENTS RATING */}
-        <TabsContent value="students" className="mt-6">
-          <Card className="p-4 mb-6">
-            <div className="flex-1">
-              <label className="text-sm font-medium mb-2 block">Guruh bo&apos;yicha filter</label>
-              <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Guruhni tanlang" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Barcha guruhlar</SelectItem>
-                  {groups.map((g) => (
-                    <SelectItem key={g.id} value={String(g.id)}>
-                      {g.name} {g.subject_name ? `— ${g.subject_name}` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        {/* ── STUDENTS RATING ── */}
+        <TabsContent value="students" className="mt-6 space-y-4">
+          {/* Group selector */}
+          <Card className="p-4">
+            <label className="text-sm font-medium mb-2 block">Guruh bo&apos;yicha filter</label>
+            <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+              <SelectTrigger>
+                <SelectValue placeholder="Guruhni tanlang" />
+              </SelectTrigger>
+              <SelectContent>
+                {groups.map((g) => (
+                  <SelectItem key={g.id} value={String(g.id)}>
+                    {g.name}
+                    {g.subject_name ? ` — ${g.subject_name}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Card>
 
+          {/* List */}
           <Card className="p-6">
-            {loading ? (
-              <p className="text-muted-foreground">Yuklanmoqda...</p>
+            {selectedGroupName && (
+              <h2 className="text-lg font-semibold mb-4">
+                {selectedGroupName} — O&apos;quvchilar reytingi
+              </h2>
+            )}
+            {loadingStudents ? (
+              <div className="space-y-3">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="h-16 rounded-lg bg-muted animate-pulse" />
+                ))}
+              </div>
+            ) : studentRatings.length === 0 ? (
+              <div className="text-center py-10">
+                <Star className="w-10 h-10 mx-auto text-muted-foreground/40 mb-3" />
+                <p className="text-muted-foreground">Bu guruhda reyting ma&apos;lumotlari yo&apos;q</p>
+              </div>
             ) : (
               <div className="space-y-4">
-                {filteredStudentRatings.map((student, idx) => (
-                  <div key={student.id} className="flex items-center justify-between border-b pb-4 last:border-0">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                        {getRankIcon(idx + 1)}
-                      </div>
-                      <div>
-                        <h4 className="font-semibold">{student.studentName}</h4>
-                        <p className="text-sm text-muted-foreground">{student.groupName}</p>
+                {studentRatings.map((student) => (
+                  <div
+                    key={student.id}
+                    className={`flex items-center gap-4 p-3 rounded-lg border ${getRankBg(student.rank)}`}
+                  >
+                    <div className="w-10 h-10 rounded-full bg-background border flex items-center justify-center shrink-0">
+                      {getRankIcon(student.rank)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold truncate">
+                        {student.first_name || student.last_name
+                          ? `${student.first_name} ${student.last_name}`.trim()
+                          : student.username}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <Progress
+                          value={(student.total_score / maxStudentScore) * 100}
+                          className="h-1.5 flex-1"
+                        />
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          {student.total_score} ball
+                        </span>
                       </div>
                     </div>
-                    <div className="flex gap-8 text-sm">
-                      <div className="text-center">
-                        <p className="text-muted-foreground">Ball</p>
-                        <p className="text-lg font-semibold text-primary">{student.score}</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-muted-foreground">Davomat</p>
-                        <p className="text-lg font-semibold text-green-600">{student.attendance}%</p>
-                      </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-xl font-bold text-primary">{student.total_score}</p>
                     </div>
                   </div>
                 ))}
@@ -270,4 +264,3 @@ export default function AdminRatingPage() {
     </div>
   );
 }
-

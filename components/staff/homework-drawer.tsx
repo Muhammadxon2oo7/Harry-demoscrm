@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { X, Upload, FileText, Clock, Plus, Download, Trash2, Send } from "lucide-react";
 import { format } from "date-fns";
 import { homeworkApi } from "@/lib/api";
+import { toast } from "@/lib/toast";
 
 interface Homework {
   id: number;
@@ -71,7 +72,7 @@ export function HomeworkDrawer({
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     } finally {
       setUploading(false);
     }
@@ -82,7 +83,7 @@ export function HomeworkDrawer({
     if (selected) {
       const allowed = ["application/pdf", "image/jpeg", "image/png", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
       if (!allowed.includes(selected.type)) {
-        alert("Faqat PDF, Word yoki rasm yuklang");
+      toast.info("Faqat PDF, Word yoki rasm yuklang");
         return;
       }
       setFile(selected);
@@ -104,7 +105,7 @@ export function HomeworkDrawer({
       setHomeworks((prev) => prev.filter((hw) => hw.id !== id));
       onHomeworkDeleted?.(id);
     } catch (err: any) {
-      alert("O‘chirishda xatolik: " + err.message);
+      toast.error("O'chirishda xatolik: " + err.message);
     } finally {
       setDeleting(null);
     }
