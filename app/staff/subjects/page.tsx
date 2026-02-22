@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { fmtDate } from "@/lib/utils";
-import { Users, BookOpen, Clock, Calendar, ChevronDown, ChevronUp } from "lucide-react";
+import { Users, User, BookOpen, Clock, Calendar, ChevronDown, ChevronUp } from "lucide-react";
 import { subjectsApi, groupsApi, type Subject, type Group } from "@/lib/api";
 
 const weekDays = [
@@ -127,6 +127,12 @@ export default function StaffSubjectsPage() {
                                 <Users className="w-3.5 h-3.5 shrink-0" />
                                 <span>{group.students_count} ta o&apos;quvchi</span>
                               </div>
+                              {group.teacher_name && (
+                                <div className="flex items-center gap-2">
+                                  <User className="w-3.5 h-3.5 shrink-0" />
+                                  <span>{group.teacher_name}</span>
+                                </div>
+                              )}
                             </div>
                           </Card>
                         ))}

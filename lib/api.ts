@@ -439,6 +439,7 @@ export interface GroupCreateInput {
 
 export const groupsApi = {
   list: () => api.get<Group[]>(`${EDUCATION_URL}/groups/`),
+  myGroups: () => api.get<Group[]>(`${EDUCATION_URL}/groups/my-groups/`),
   get: (id: number) => api.get<Group>(`${EDUCATION_URL}/groups/${id}/`),
   create: (data: GroupCreateInput) => api.post<Group>(`${EDUCATION_URL}/groups/`, data),
   update: (id: number, data: Partial<GroupCreateInput>) =>

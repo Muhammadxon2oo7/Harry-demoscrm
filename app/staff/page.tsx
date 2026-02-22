@@ -29,7 +29,7 @@ export default function StaffDashboard() {
 
   const loadData = useCallback(async () => {
     try {
-      const groups = await groupsApi.list();
+      const groups = await groupsApi.myGroups();
       setMyGroups(groups);
     } catch {
       // handled by api client

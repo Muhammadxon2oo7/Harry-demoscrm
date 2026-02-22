@@ -21,6 +21,7 @@ import {
   Edit,
   Trash2,
   Users,
+  User,
   BookOpen,
   Clock,
   Calendar,
@@ -400,6 +401,12 @@ export default function AdminSubjectsPage() {
                                 <Users className="w-3.5 h-3.5 shrink-0" />
                                 <span>{group.students_count} ta o&apos;quvchi</span>
                               </div>
+                              {group.teacher_name && (
+                                <div className="flex items-center gap-2">
+                                  <User className="w-3.5 h-3.5 shrink-0" />
+                                  <span>{group.teacher_name}</span>
+                                </div>
+                              )}
                             </div>
                           </Card>
                         ))}
